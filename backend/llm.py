@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import re
 from typing import List
 
 # Official SDKs
@@ -13,9 +14,9 @@ CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Models
-CEREBRAS_MODEL = "qwen-3-32b"
+CEREBRAS_MODEL = "qwen-3-32b" # Updated from llama3.1-8b
 GEMINI_MODEL = "gemini-2.5-flash"
-EMBEDDING_MODEL = "models/gemini-embedding-001" # Matches "gemini-embedding-001" requirement, usually prefixed with models/
+EMBEDDING_MODEL = "models/gemini-embedding-001" 
 
 # Initialize Clients
 cerebras_client = None
@@ -35,16 +36,6 @@ async def cerebras_call(prompt: str, system_prompt: str, timeout: int = 10) -> s
     if not cerebras_client:
         raise Exception("Cerebras client not initialized")
     
-    # Cerebras SDK is synchronous by default unless using async client. 
-    # The standard 'Cerebras' client is sync. 'AsyncCerebras' exists but let's wrap in thread for simplicity 
-    # if strictly needed, or just run it. FastAPI handles sync calls in threadpool if defined def (not async),
-    # but since we are async def, we should avoid blocking loop.
-    # However, for this prototype, blocking for 1-2s is "okay", but let's try to use AsyncCerebras if available 
-    # or just run_in_executor.
-    
-    # Checking import for AsyncCerebras... 
-    # For safety/simplicity in this env, we will run the sync call in a thread.
-    
     def _call():
         response = cerebras_client.chat.completions.create(
             model=CEREBRAS_MODEL,
@@ -54,7 +45,10 @@ async def cerebras_call(prompt: str, system_prompt: str, timeout: int = 10) -> s
             ],
             temperature=0.7
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        # Remove <think> tags and their content
+        clean_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+        return clean_content
 
     return await asyncio.to_thread(_call)
 

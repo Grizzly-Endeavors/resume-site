@@ -13,6 +13,7 @@ class Experience(BaseModel):
 class ChatRequest(BaseModel):
     message: Optional[str] = None # Optional because initial load might not have a message
     visitor_context: Optional[Dict[str, Any]] = None
+    history: List[Dict[str, str]] = [] # List of {"role": "user"|"ai", "content": "..."}
 
 class ChatResponse(BaseModel):
     ready: bool

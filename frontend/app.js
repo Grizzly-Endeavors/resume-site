@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let visitorSummary = null;
     let previousBlockSummary = null;
     let isChatting = true;
+    let chatHistoryData = []; // Stores {role: 'user'|'ai', content: string}
 
     // --- Chat Logic ---
 
@@ -18,12 +19,22 @@ document.addEventListener('DOMContentLoaded', () => {
         div.textContent = text;
         chatHistory.appendChild(div);
         chatHistory.scrollTop = chatHistory.scrollHeight;
+        
+        // Add to history data
+        // We map 'ai' in UI to 'assistant' for backend/LLM standard usually, 
+        // but let's stick to what the backend expects. The backend likely wants 'user' and 'assistant' (or 'ai').
+        // Let's use 'user' and 'model' or 'assistant'. 
+        // For simplicity in this app, we'll store what we need.
+        chatHistoryData.push({ role: sender === 'user' ? 'user' : 'assistant', content: text });
     }
 
     async function sendChat(message) {
-        if (!message) return;
+        if (!message && chatHistoryData.length > 0) return; // Don't send empty if not start
         
-        appendMessage(message, 'user');
+        if (message) {
+            appendMessage(message, 'user');
+        }
+        
         chatInput.value = '';
         chatInput.disabled = true;
         chatSend.disabled = true;
@@ -32,7 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, visitor_context: {} })
+                body: JSON.stringify({ 
+                    message: message, 
+                    visitor_context: {},
+                    history: chatHistoryData 
+                })
             });
             const data = await res.json();
 
@@ -69,7 +84,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: null }) // Trigger greeting
+                body: JSON.stringify({ 
+                    message: null,
+                    history: [] 
+                }) 
             });
             const data = await res.json();
             appendMessage(data.message, 'ai');

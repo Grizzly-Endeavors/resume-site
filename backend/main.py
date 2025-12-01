@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -51,21 +52,48 @@ async def health_check():
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
-        # Construct the prompt
-        # We append the user's message to a simple history if needed, 
-        # but for now it's single turn or client-managed history.
-        # The prompt expects the assistant to "Ask 1-2 brief questions".
-        # If it's the first load (no message), we send a greeting trigger.
+        user_msg = request.message or ""
+        history = request.history or []
         
-        user_msg = request.message or "Hello, I just arrived at the site."
+        # Count user turns (messages where role is 'user')
+        user_turns = sum(1 for msg in history if msg.get("role") == "user")
+        if user_msg:
+             user_turns += 1
+
+        # Construct Prompt with History
+        # We format history into a text block for the LLM
+        history_text = ""
+        for msg in history:
+            role = "Visitor" if msg.get("role") == "user" else "Assistant"
+            history_text += f"{role}: {msg.get('content')}\n"
         
-        full_prompt = f"Visitor says: {user_msg}"
+        if user_msg:
+            history_text += f"Visitor: {user_msg}\n"
+
+        system_instruction = CHAT_SYSTEM_PROMPT
         
-        response_text = await generate_text(full_prompt, CHAT_SYSTEM_PROMPT)
+        # Turn Logic
+        if user_turns >= 5:
+            # Force finish
+            system_instruction += "\n\nCRITICAL: You have reached the maximum conversation turns. You MUST now respond with the JSON ready signal. Summarize what you know so far."
+        elif user_turns >= 2:
+            # Suggest finish
+            system_instruction += "\n\nNote: You have gathered enough information. Please wrap up the conversation and provide the JSON ready signal."
+
+        full_prompt = f"{history_text}\nAssistant:"
+        
+        # Special case for initial load (empty history, empty message)
+        if not history and not user_msg:
+            # Static initial greeting
+            return ChatResponse(
+                ready=False, 
+                message="Hi! I'm an AI assistant for this resume. To get started, could you tell me a bit about who you are (e.g., recruiter, engineer) and what you're looking for?"
+            )
+
+        response_text = await generate_text(full_prompt, system_instruction)
         
         # Check if response is JSON (ready signal)
         try:
-            # Heuristic to find JSON block if LLM adds text around it
             if "{" in response_text and "}" in response_text:
                 start = response_text.find("{")
                 end = response_text.rfind("}") + 1
@@ -75,7 +103,6 @@ async def chat(request: ChatRequest):
             else:
                  return ChatResponse(ready=False, message=response_text)
         except json.JSONDecodeError:
-            # Fallback if not valid JSON, treat as chat message
             return ChatResponse(ready=False, message=response_text)
             
     except Exception as e:
