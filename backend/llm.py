@@ -13,8 +13,8 @@ CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Models
-CEREBRAS_MODEL = "llama3.1-8b"
-GEMINI_MODEL = "gemini-1.5-flash"
+CEREBRAS_MODEL = "qwen-3-32b"
+GEMINI_MODEL = "gemini-2.5-flash"
 EMBEDDING_MODEL = "models/gemini-embedding-001" # Matches "gemini-embedding-001" requirement, usually prefixed with models/
 
 # Initialize Clients
