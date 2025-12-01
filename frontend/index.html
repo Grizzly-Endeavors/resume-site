@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Resume</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <header class="hero">
+        <div class="container">
+            <h1>Jane Doe</h1>
+            <p class="subtitle">Senior Software Engineer & Open Source Contributor</p>
+            <p class="intro-text">
+                Welcome to my AI-powered interactive resume. 
+                I adapt my experience to what you're looking for.
+            </p>
+        </div>
+    </header>
+
+    <section id="chat-section" class="container chat-container">
+        <div id="chat-history" class="chat-history">
+            <!-- Chat messages go here -->
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Type your answer..." disabled>
+            <button id="chat-send" disabled>→</button>
+        </div>
+    </section>
+
+    <main id="content-stream" class="container">
+        <!-- AI Generated Blocks will be injected here -->
+    </main>
+    
+    <div id="loading-indicator" class="container hidden">
+        <div class="spinner"></div>
+        <p>Generating personalized content...</p>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
