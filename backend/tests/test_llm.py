@@ -1,0 +1,43 @@
+import pytest
+from unittest.mock import MagicMock, AsyncMock, patch
+import os
+from llm import generate_text
+
+@pytest.mark.asyncio
+async def test_generate_text_cerebras_success():
+    with patch("llm.cerebras_call", new_callable=AsyncMock) as mock_cerebras:
+        mock_cerebras.return_value = "Cerebras response"
+        
+        response = await generate_text("prompt", "system")
+        
+        assert response == "Cerebras response"
+        mock_cerebras.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_generate_text_fallback_to_gemini():
+    with patch("llm.cerebras_call", new_callable=AsyncMock) as mock_cerebras, \
+         patch("llm.gemini_call", new_callable=AsyncMock) as mock_gemini:
+        
+        mock_cerebras.side_effect = Exception("Cerebras error")
+        mock_gemini.return_value = "Gemini response"
+        
+        response = await generate_text("prompt", "system")
+        
+        assert response == "Gemini response"
+        mock_cerebras.assert_awaited_once()
+        mock_gemini.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_generate_text_all_fail():
+    with patch("llm.cerebras_call", new_callable=AsyncMock) as mock_cerebras, \
+         patch("llm.gemini_call", new_callable=AsyncMock) as mock_gemini:
+        
+        mock_cerebras.side_effect = Exception("Cerebras error")
+        mock_gemini.side_effect = Exception("Gemini error")
+        
+        # Ensure MOCK_LLM is false (default behavior is raising exception unless env var set)
+        with patch.dict(os.environ, {"MOCK_LLM": "false"}):
+            with pytest.raises(Exception) as excinfo:
+                await generate_text("prompt", "system")
+            
+            assert "All LLM providers failed" in str(excinfo.value)
