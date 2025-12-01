@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let visitorSummary = null;
     let previousBlockSummary = null;
     let isChatting = true;
-    let chatHistoryArray = [];
 
     // --- Chat Logic ---
 
@@ -25,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!message) return;
         
         appendMessage(message, 'user');
-        chatHistoryArray.push({role: 'user', content: message});
         chatInput.value = '';
         chatInput.disabled = true;
         chatSend.disabled = true;
@@ -34,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, history: chatHistoryArray, visitor_context: {} })
+                body: JSON.stringify({ message, visitor_context: {} })
             });
             const data = await res.json();
 
@@ -51,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 1500);
             } else {
                 appendMessage(data.message, 'ai');
-                chatHistoryArray.push({role: 'assistant', content: data.message});
                 chatInput.disabled = false;
                 chatSend.disabled = false;
                 chatInput.focus();
@@ -72,11 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: null, history: chatHistoryArray })
+                body: JSON.stringify({ message: null }) // Trigger greeting
             });
             const data = await res.json();
             appendMessage(data.message, 'ai');
-            chatHistoryArray.push({role: 'assistant', content: data.message});
         } catch (err) {
             console.error(err);
         } finally {

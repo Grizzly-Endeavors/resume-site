@@ -4,7 +4,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import ValidationError
-import json
 
 from contextlib import asynccontextmanager
 
@@ -52,15 +51,17 @@ async def health_check():
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
-        # Construct the messages
+        # Construct the prompt
+        # We append the user's message to a simple history if needed, 
+        # but for now it's single turn or client-managed history.
+        # The prompt expects the assistant to "Ask 1-2 brief questions".
+        # If it's the first load (no message), we send a greeting trigger.
+        
         user_msg = request.message or "Hello, I just arrived at the site."
         
-        messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPT}]
-        if request.history:
-            messages.extend(request.history)
-        messages.append({"role": "user", "content": user_msg})
+        full_prompt = f"Visitor says: {user_msg}"
         
-        response_text = await generate_text(messages)
+        response_text = await generate_text(full_prompt, CHAT_SYSTEM_PROMPT)
         
         # Check if response is JSON (ready signal)
         try:

@@ -31,21 +31,34 @@ if GEMINI_API_KEY and not GEMINI_API_KEY.startswith("placeholder"):
     except Exception as e:
         logger.warning(f"Failed to configure Gemini: {e}")
 
-async def cerebras_call(messages: List[Dict[str, str]], timeout: int = 10) -> str:
+async def cerebras_call(prompt: str, system_prompt: str, timeout: int = 10) -> str:
     if not cerebras_client:
         raise Exception("Cerebras client not initialized")
+    
+    # Cerebras SDK is synchronous by default unless using async client. 
+    # The standard 'Cerebras' client is sync. 'AsyncCerebras' exists but let's wrap in thread for simplicity 
+    # if strictly needed, or just run it. FastAPI handles sync calls in threadpool if defined def (not async),
+    # but since we are async def, we should avoid blocking loop.
+    # However, for this prototype, blocking for 1-2s is "okay", but let's try to use AsyncCerebras if available 
+    # or just run_in_executor.
+    
+    # Checking import for AsyncCerebras... 
+    # For safety/simplicity in this env, we will run the sync call in a thread.
     
     def _call():
         response = cerebras_client.chat.completions.create(
             model=CEREBRAS_MODEL,
-            messages=messages,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
             temperature=0.7
         )
         return response.choices[0].message.content
 
     return await asyncio.to_thread(_call)
 
-async def gemini_call(messages: List[Dict[str, str]], timeout: int = 30) -> str:
+async def gemini_call(prompt: str, system_prompt: str, timeout: int = 30) -> str:
     if not GEMINI_API_KEY or GEMINI_API_KEY.startswith("placeholder"):
          if os.getenv("MOCK_LLM", "false").lower() == "true":
              return "<!-- Mock HTML Content --> <section><h2>Mock Content</h2><p>This is generated content (Mock).</p></section>"
@@ -53,35 +66,25 @@ async def gemini_call(messages: List[Dict[str, str]], timeout: int = 30) -> str:
 
     # GenAI SDK
     def _call():
-        # Extract system instruction if present
-        system_instruction = None
-        chat_messages = messages
-        if messages and messages[0]["role"] == "system":
-            system_instruction = messages[0]["content"]
-            chat_messages = messages[1:]
-        
         model = genai.GenerativeModel(
             model_name=GEMINI_MODEL,
-            system_instruction=system_instruction
+            system_instruction=system_prompt
         )
-        
-        # Use chat session for history
-        chat = model.start_chat(history=chat_messages[:-1])  # all except the last message
-        response = chat.send_message(chat_messages[-1]["content"])
+        response = model.generate_content(prompt)
         return response.text
 
     return await asyncio.to_thread(_call)
 
-async def generate_text(messages: List[Dict[str, str]]) -> str:
+async def generate_text(prompt: str, system_prompt: str) -> str:
     """
     Tries Cerebras first, falls back to Gemini.
     """
     try:
-        return await cerebras_call(messages)
+        return await cerebras_call(prompt, system_prompt)
     except Exception as e:
         logger.warning(f"Cerebras call failed: {e}. Falling back to Gemini.")
         try:
-            return await gemini_call(messages)
+            return await gemini_call(prompt, system_prompt)
         except Exception as e2:
             logger.error(f"Gemini call failed: {e2}")
             # Mock fallback if everything fails and we are in dev/mock mode
