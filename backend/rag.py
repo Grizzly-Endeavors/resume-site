@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def apply_diversity_scoring(
     results: List[Dict[str, Any]],
     shown_ids: List[str],
-    penalty: float = 0.3
+    penalty: float = 0.4
 ) -> List[Dict[str, Any]]:
     """
     Apply diversity penalty to previously shown experiences.
@@ -17,7 +17,7 @@ def apply_diversity_scoring(
     Args:
         results: RAG search results with 'similarity' scores
         shown_ids: List of experience IDs already shown
-        penalty: Reduction factor (0.3 = 30% penalty)
+        penalty: Reduction factor (0.4 = 40% penalty)
 
     Returns:
         Re-ranked results

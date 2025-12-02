@@ -9,7 +9,7 @@ from ai.prompts import (
     CHAT_SYSTEM_PROMPT,
     BLOCK_GENERATION_SYSTEM_PROMPT,
     BUTTON_GENERATION_PROMPT,
-    QUERY_EXPANSION_PROMPT,
+    PROMPT_GENERATION_PROMPT,
     SUMMARY_GENERATION_PROMPT
 )
 from models import CompressedContext, SuggestedButton
@@ -78,32 +78,42 @@ class GenerationHandler:
         except json.JSONDecodeError:
             return {"ready": False, "message": response_text}
 
-    async def expand_query(self, query: str, visitor_summary: str) -> str:
+    async def generate_prompt(
+        self,
+        visitor_summary: str,
+        context_summary: str,
+        user_input: str
+    ) -> str:
         """
-        Expand search query with related terms using medium model.
+        Generate a comprehensive prompt for RAG retrieval and content generation.
 
         Args:
-            query: Original query
-            visitor_summary: Context about the visitor
+            visitor_summary: Who the visitor is and what they're looking for
+            context_summary: What has been covered so far
+            user_input: Current user action (button or chat input)
 
         Returns:
-            Expanded query string
+            Generated prompt string
         """
-        prompt = f"Visitor: {visitor_summary}\nQuery: {query}"
+        formatted_prompt = PROMPT_GENERATION_PROMPT.format(
+            visitor_summary=visitor_summary,
+            context_summary=context_summary if context_summary else "No prior context",
+            user_input=user_input
+        )
+
         try:
-            expanded = await self.llm.llm_call(
-                prompt=prompt,
-                system_prompt=QUERY_EXPANSION_PROMPT,
+            generated = await self.llm.llm_call(
+                prompt="Generate the prompt.",
+                system_prompt=formatted_prompt,
                 size=ModelSize.MEDIUM,
                 timeout=5
             )
-            # Clean up output - it should be comma separated terms
-            expanded = expanded.strip()
-            logger.info(f"[QUERY] Original: '{query}' -> Expanded: '{expanded}'")
-            return f"{query} {expanded}"  # Combine original + expanded
+            generated = generated.strip()
+            logger.info(f"[PROMPT] Generated: '{generated}'")
+            return generated
         except Exception as e:
-            logger.warning(f"Query expansion failed: {e}, using original query")
-            return query  # Fallback to original
+            logger.warning(f"Prompt generation failed: {e}, using fallback")
+            return user_input  # Fallback to original input
 
     async def generate_block(
         self,
@@ -118,22 +128,7 @@ class GenerationHandler:
         Returns:
             Dict with 'html', 'block_summary', and 'experience_ids'
         """
-        # 1. Query Expansion
-        query = action_value or visitor_summary
-        expanded_query = await self.expand_query(query, visitor_summary)
-
-        # 2. RAG with Diversity Scoring
-        shown_ids = context.shown_experience_ids if context else []
-        experiences = await search_similar_experiences(
-            query=expanded_query,
-            limit=10,
-            shown_ids=shown_ids
-        )
-
-        experience_ids = [exp['id'] for exp in experiences]
-        rag_results = await format_rag_results(experiences)
-
-        # 3. Build Context Summary
+        # 1. Build Context Summary
         context_summary = ""
         if context:
             if context.recent_block_summary:
@@ -141,13 +136,29 @@ class GenerationHandler:
             if context.topics_covered:
                 context_summary += f"Topics Already Covered: {', '.join(context.topics_covered)}\n"
 
-        # 4. Format Prompt
-        formatted_prompt = BLOCK_GENERATION_SYSTEM_PROMPT.format(
+        # 2. Generate Prompt
+        user_input = action_value or visitor_summary
+        generated_prompt = await self.generate_prompt(
             visitor_summary=visitor_summary,
             context_summary=context_summary,
-            rag_results=rag_results,
-            action_type=action_type or "initial_load",
-            action_value=action_value or "None"
+            user_input=user_input
+        )
+
+        # 3. RAG with Diversity Scoring
+        shown_ids = context.shown_experience_ids if context else []
+        experiences = await search_similar_experiences(
+            query=generated_prompt,
+            limit=5,
+            shown_ids=shown_ids
+        )
+
+        experience_ids = [exp['id'] for exp in experiences]
+        rag_results = await format_rag_results(experiences)
+
+        # 4. Format System Prompt
+        formatted_prompt = BLOCK_GENERATION_SYSTEM_PROMPT.format(
+            generated_prompt=generated_prompt,
+            rag_results=rag_results
         )
 
         # 5. Generate Block (Large model for quality)
@@ -189,11 +200,15 @@ class GenerationHandler:
         Returns:
             One-sentence summary
         """
-        prompt = f"HTML Content:\n{html}\n\nVisitor Context: {visitor_summary}"
+        formatted_prompt = SUMMARY_GENERATION_PROMPT.format(
+            html=html,
+            visitor_summary=visitor_summary
+        )
+
         try:
             summary = await self.llm.llm_call(
-                prompt=prompt,
-                system_prompt=SUMMARY_GENERATION_PROMPT,
+                prompt="Generate the summary.",
+                system_prompt=formatted_prompt,
                 size=ModelSize.SMALL,
                 timeout=5
             )
@@ -230,22 +245,25 @@ class GenerationHandler:
                 context_summary += f"Topics Already Covered: {', '.join(context.topics_covered)}\n"
             shown_ids = context.shown_experience_ids
 
-        # RAG Search (Consistent with block generation)
-        query = visitor_summary or "General professional experience"
-        expanded_query = await self.expand_query(query, visitor_summary)
+        # Generate Prompt
+        user_input = history_text if history_text else "General professional experience"
+        generated_prompt = await self.generate_prompt(
+            visitor_summary=visitor_summary,
+            context_summary=context_summary,
+            user_input=user_input
+        )
 
+        # RAG Search
         experiences = await search_similar_experiences(
-            query=expanded_query,
-            limit=10,
+            query=generated_prompt,
+            limit=5,
             shown_ids=shown_ids
         )
         rag_results = await format_rag_results(experiences)
 
         # Construct prompt
         formatted_prompt = BUTTON_GENERATION_PROMPT.format(
-            visitor_summary=visitor_summary or "Unknown visitor",
-            chat_history=history_text if history_text else "No prior conversation",
-            context_summary=context_summary,
+            generated_prompt=generated_prompt,
             rag_results=rag_results
         )
 

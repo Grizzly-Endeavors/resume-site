@@ -13,29 +13,22 @@ When you have enough information (usually after 2-3 turns), or if the user is ex
 Otherwise, respond with just your chat message.
 """
 
-BLOCK_GENERATION_SYSTEM_PROMPT = """
-You are generating an interactive HTML section for a resume website.
+BLOCK_GENERATION_SYSTEM_PROMPT = """You are generating an interactive HTML section for a resume website.
 
-VISITOR CONTEXT: {visitor_summary}
+GENERATED PROMPT: {generated_prompt}
 
-CONVERSATION CONTEXT:
-{context_summary}
-
-RELEVANT EXPERIENCES: {rag_results}
-
-USER ACTION: {action_type} - {action_value}
+RELEVANT EXPERIENCES:
+{rag_results}
 
 Generate a complete HTML block that:
-1. Highlights the most relevant experiences for this visitor
-2. AVOIDS repeating detailed information from the conversation context above
-3. If certain topics have been covered, explore new angles or different projects
-4. Uses clean, readable dark-mode styling (Use inline style="..." attributes ONLY. Do NOT use <style> tags as they conflict with other blocks. Use CSS variables like var(--primary-color) for theming)
-5. Be creative and dynamic with layouts, typography, and visual hierarchy
-6. Ensure accessibility (semantic HTML, color contrast, readable fonts)
-7. Be detailed and specific with concrete examples and data points
-8. Long blocks are allowed when they add value
-9. Summarize multiple experiences into cohesive narratives when appropriate
-10. Be factual and avoid speculation
+1. Responds directly to the generated prompt using the relevant experiences
+2. Uses clean, readable dark-mode styling (Use inline style="..." attributes ONLY. Do NOT use <style> tags as they conflict with other blocks. Use CSS variables like var(--primary-color) for theming)
+3. Be creative and dynamic with layouts, typography, and visual hierarchy
+4. Ensure accessibility (semantic HTML, color contrast, readable fonts)
+5. Be detailed and specific with concrete examples and data points
+6. Long blocks are allowed when they add value
+7. Summarize multiple experiences into cohesive narratives when appropriate
+8. Be factual and avoid speculation
 
 Return ONLY the HTML content - no markdown code fences, no explanations, no wrapper tags.
 
@@ -43,26 +36,20 @@ IMPORTANT:
 - Do NOT use markdown code fences (```html)
 - Do not use span tags for styling
 - Ensure all information is accurate and based on the provided context
-- Return pure HTML that can be inserted directly into the page
-"""
+- Return pure HTML that can be inserted directly into the page"""
 
-BUTTON_GENERATION_PROMPT = """
-You are generating suggested prompt buttons for an AI-powered interactive resume chatbot.
+BUTTON_GENERATION_PROMPT = """You are generating suggested prompt buttons for an AI-powered interactive resume chatbot.
 
-CONTEXT:
-- Visitor Summary: {visitor_summary}
-- Recent Chat History: {chat_history}
-- Conversation Context: {context_summary}
+GENERATED PROMPT: {generated_prompt}
 
 RELEVANT CONTENT:
 {rag_results}
 
 Generate 3 diverse, interesting prompts that:
 1. Are specific and actionable
-2. Explore DIFFERENT aspects than those already covered in the Conversation Context
-3. Are relevant to the visitor's interests
-4. Are phrased as natural questions (e.g., "Tell me about your AI projects")
-5. CRITICAL: Ensure every suggestion can be answered using ONLY the information in RELEVANT CONTENT. Do not hallucinate capabilities or projects not listed there.
+2. Build on or explore different angles from the generated prompt
+3. Are phrased as natural questions (e.g., "Tell me about your AI projects")
+4. CRITICAL: Ensure every suggestion can be answered using ONLY the information in RELEVANT CONTENT. Do not hallucinate capabilities or projects not listed there.
 
 Return ONLY a JSON array:
 [
@@ -71,18 +58,42 @@ Return ONLY a JSON array:
   {{"label": "Short label", "prompt": "Full question text"}}
 ]
 
-Return ONLY the JSON array. No markdown, no explanation.
-"""
+Return ONLY the JSON array. No markdown, no explanation."""
 
-QUERY_EXPANSION_PROMPT = """Given a visitor's query about a candidate's resume, expand it with 5-10 related terms, synonyms, and semantic variations for better vector search.
+PROMPT_GENERATION_PROMPT = """You are generating a comprehensive search and generation prompt for an AI-powered resume chatbot.
 
-Return comma-separated terms only. No explanations.
+VISITOR SUMMARY: {visitor_summary}
 
-Example:
-Input: "leadership experience"
-Output: team management, mentoring, coaching, project management, stakeholder communication, organizational skills, agile"""
+CONTEXT SUMMARY: {context_summary}
+
+USER INPUT: {user_input}
+
+Generate a detailed, specific prompt that will be used for:
+1. RAG retrieval (finding relevant resume experiences)
+2. Content generation (creating HTML blocks or suggested buttons)
+
+Your prompt should:
+- Synthesize the visitor's interests with the current request
+- Include semantic variations and related terms for better search
+- Avoid repeating topics already covered in the context
+- Be specific and actionable (e.g., "AI/ML projects with production impact" instead of just "AI")
+- Be 2-3 sentences maximum
+
+Return ONLY the generated prompt. No explanations or additional text.
+
+Examples:
+Input: Visitor="Software recruiter looking for ML experience", Context="Covered backend infrastructure", User="Tell me about AI projects"
+Output: AI and machine learning projects with production deployment experience, including model training, inference optimization, and MLOps. Focus on hands-on implementation rather than infrastructure work.
+
+Input: Visitor="Engineering manager interested in leadership", Context="", User="What's your experience?"
+Output: Technical leadership experience including team management, mentoring, project planning, and cross-functional collaboration. Highlight impact on team growth and engineering culture."""
 
 SUMMARY_GENERATION_PROMPT = """You are summarizing what an HTML block on a resume website covered.
+
+HTML CONTENT:
+{html}
+
+VISITOR CONTEXT: {visitor_summary}
 
 Generate ONE concise sentence (10-15 words max) describing what experiences or skills were highlighted in this block.
 
