@@ -10,7 +10,6 @@ services:
       - DATABASE_URL=postgresql://user:pass@db:5432/resume
       - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - MOCK_LLM=true
     depends_on:
       - db
 

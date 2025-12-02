@@ -37,20 +37,13 @@ Generate a complete HTML block that:
 9. Summarize multiple experiences into cohesive narratives when appropriate
 10. Be factual and avoid speculation
 
-Format your response as:
-<block>
-[Your complete HTML content here - this will be inserted directly into the page]
-</block>
-<summary>
-[One concise sentence describing what this block covered - used for context tracking]
-</summary>
+Return ONLY the HTML content - no markdown code fences, no explanations, no wrapper tags.
 
 IMPORTANT:
 - Do NOT use markdown code fences (```html)
-- The <block> tags are for parsing only, not part of the HTML
-- The summary should be semantic (e.g., "Explored AI/ML projects and technical leadership at Company X")
-- Do not use span tags for styling.
+- Do not use span tags for styling
 - Ensure all information is accurate and based on the provided context
+- Return pure HTML that can be inserted directly into the page
 """
 
 BUTTON_GENERATION_PROMPT = """
@@ -83,11 +76,23 @@ Return ONLY the JSON array. No markdown, no explanation.
 
 QUERY_EXPANSION_PROMPT = """Given a visitor's query about a candidate's resume, expand it with 5-10 related terms, synonyms, and semantic variations for better vector search.
 
-Visitor Context: {visitor_summary}
-Original Query: {query}
-
 Return comma-separated terms only. No explanations.
 
 Example:
 Input: "leadership experience"
 Output: team management, mentoring, coaching, project management, stakeholder communication, organizational skills, agile"""
+
+SUMMARY_GENERATION_PROMPT = """You are summarizing what an HTML block on a resume website covered.
+
+Generate ONE concise sentence (10-15 words max) describing what experiences or skills were highlighted in this block.
+
+The summary should be semantic and specific, mentioning:
+- Key topics covered (e.g., "AI/ML projects", "backend infrastructure", "leadership")
+- Company or context if relevant
+
+Examples:
+- "Explored AI/ML projects and technical leadership at Google"
+- "Detailed backend infrastructure work and distributed systems experience"
+- "Highlighted early-stage startup experience and product management"
+
+Return ONLY the summary sentence. No additional text or formatting."""

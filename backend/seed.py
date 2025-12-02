@@ -3,7 +3,7 @@ import os
 import re
 from typing import List, Dict, Any
 from db import init_db, get_db_pool, close_db_pool
-from llm import generate_embedding
+from llm import llm_handler
 import json
 
 def parse_markdown_file(file_path: str) -> Dict[str, Any]:
@@ -91,7 +91,7 @@ async def seed_data():
 
         for item in items:
             print(f"Processing: {item['title']}")
-            embedding = await generate_embedding(f"{item['title']}\n{item['content']}")
+            embedding = await llm_handler.generate_embedding(f"{item['title']}\n{item['content']}")
             embedding_str = f"[{','.join(map(str, embedding))}]"
             
             await conn.execute("""

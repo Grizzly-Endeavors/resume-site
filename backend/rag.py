@@ -1,7 +1,7 @@
 import json
 import logging
 from db import get_db_pool
-from llm import generate_embedding
+from llm import llm_handler
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ async def search_similar_experiences(
     pool = await get_db_pool()
 
     logger.info(f"[RAG Search] Query: '{query}', Shown IDs: {len(shown_ids) if shown_ids else 0}")
-    query_embedding = await generate_embedding(query, task_type="retrieval_query")
+    query_embedding = await llm_handler.generate_embedding(query, task_type="retrieval_query")
 
     # Format embedding for pgvector
     embedding_str = f"[{','.join(map(str, query_embedding))}]"
