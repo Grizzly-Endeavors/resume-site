@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import re
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
@@ -9,10 +10,10 @@ from pydantic import ValidationError
 from contextlib import asynccontextmanager
 
 from db import init_db, close_db_pool
-from llm import generate_text
+from llm import generate_text, generate_block_content, generate_button_suggestions, expand_query
 from rag import search_similar_experiences, format_rag_results
 from prompts import CHAT_SYSTEM_PROMPT, BLOCK_GENERATION_SYSTEM_PROMPT, BUTTON_GENERATION_PROMPT
-from models import ChatRequest, ChatResponse, GenerateBlockRequest, GenerateBlockResponse, GenerateButtonsRequest, GenerateButtonsResponse, SuggestedButton
+from models import ChatRequest, ChatResponse, GenerateBlockRequest, GenerateBlockResponse, GenerateButtonsRequest, GenerateButtonsResponse, SuggestedButton, CompressedContext
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,11 +25,6 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing database...")
     await init_db()
     
-    # Try seeding if data exists and env var says so? Or just let the seed script handle it manually.
-    # The plan says "Seed script runs on first startup". 
-    # Usually better to run it explicitly or have a check. 
-    # For now, we assume user runs seed script manually or via docker command.
-    
     yield
     
     # Shutdown
@@ -38,7 +34,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # Serve static files
-# We expect frontend files to be in /app/frontend in the container
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
@@ -55,13 +50,10 @@ async def chat(request: ChatRequest):
         user_msg = request.message or ""
         history = request.history or []
         
-        # Count user turns (messages where role is 'user')
         user_turns = sum(1 for msg in history if msg.get("role") == "user")
         if user_msg:
              user_turns += 1
 
-        # Construct Prompt with History
-        # We format history into a text block for the LLM
         history_text = ""
         for msg in history:
             role = "Visitor" if msg.get("role") == "user" else "Assistant"
@@ -72,19 +64,14 @@ async def chat(request: ChatRequest):
 
         system_instruction = CHAT_SYSTEM_PROMPT
         
-        # Turn Logic
         if user_turns >= 5:
-            # Force finish
             system_instruction += "\n\nCRITICAL: You have reached the maximum conversation turns. You MUST now respond with the JSON ready signal. Summarize what you know so far."
         elif user_turns >= 2:
-            # Suggest finish
             system_instruction += "\n\nNote: You have gathered enough information. Please wrap up the conversation and provide the JSON ready signal."
 
         full_prompt = f"{history_text}\nAssistant:"
         
-        # Special case for initial load (empty history, empty message)
         if not history and not user_msg:
-            # Static initial greeting
             return ChatResponse(
                 ready=False, 
                 message="Hi! I'm an AI assistant for this resume. To get started, could you tell me a bit about who you are (e.g., recruiter, engineer) and what you're looking for?"
@@ -92,7 +79,6 @@ async def chat(request: ChatRequest):
 
         response_text = await generate_text(full_prompt, system_instruction)
         
-        # Check if response is JSON (ready signal)
         try:
             if "{" in response_text and "}" in response_text:
                 start = response_text.find("{")
@@ -109,49 +95,72 @@ async def chat(request: ChatRequest):
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def parse_block_response(response: str) -> tuple[str, str]:
+    """Extract HTML and summary from structured response"""
+    block_match = re.search(r'<block>(.*?)</block>', response, re.DOTALL)
+    summary_match = re.search(r'<summary>(.*?)</summary>', response, re.DOTALL)
+
+    if block_match and summary_match:
+        html = block_match.group(1).strip()
+        summary = summary_match.group(1).strip()
+    else:
+        # Fallback: treat entire response as HTML
+        html = response.strip()
+        summary = "Displayed relevant experience block"
+        logger.warning("Failed to parse structured response, using fallback")
+
+    # Filter out any summary tags and their content from the HTML
+    html = re.sub(r'<summary[^>]*>.*?</summary>', '', html, flags=re.DOTALL | re.IGNORECASE)
+
+    return html, summary
+
 @app.post("/api/generate-block", response_model=GenerateBlockResponse)
 async def generate_block(request: GenerateBlockRequest):
     try:
-        # 1. RAG Retrieval
-        # We use visitor summary and optionally action info to guide retrieval
-        query = f"{request.visitor_summary}"
-        if request.action_value:
-            query += f" {request.action_value}"
+        # 1. Query Expansion
+        query = request.action_value or request.visitor_summary
+        expanded_query = await expand_query(query, request.visitor_summary)
+        logger.info(f"[QUERY] Original: '{query}' -> Expanded: '{expanded_query}'")
 
-        logger.info(f"[RAG] Query: '{query}'")
-        logger.info(f"[RAG] Action Type: {request.action_type}, Action Value: {request.action_value}")
+        # 2. RAG with Diversity Scoring
+        shown_ids = request.context.shown_experience_ids if request.context else []
+        experiences = await search_similar_experiences(
+            query=expanded_query,
+            limit=10,
+            shown_ids=shown_ids
+        )
 
-        experiences = await search_similar_experiences(query, limit=10)
-
-        # Log what was retrieved
-        logger.info(f"[RAG] Retrieved {len(experiences)} experiences:")
-        for i, exp in enumerate(experiences, 1):
-            logger.info(f"  {i}. [{exp.get('similarity', 0):.4f}] {exp['title']} (type: {exp['metadata'].get('type', 'unknown')})")
-
+        experience_ids = [exp['id'] for exp in experiences]
         rag_results = await format_rag_results(experiences)
 
-        # 2. Prompt Construction
+        # 3. Build Context Summary
+        context_summary = ""
+        if request.context:
+            if request.context.recent_block_summary:
+                context_summary += f"Most Recent Block: {request.context.recent_block_summary}\n"
+            if request.context.topics_covered:
+                context_summary += f"Topics Already Covered: {', '.join(request.context.topics_covered)}\n"
+
+        # 4. Format Prompt
         formatted_prompt = BLOCK_GENERATION_SYSTEM_PROMPT.format(
             visitor_summary=request.visitor_summary,
+            context_summary=context_summary,
             rag_results=rag_results,
-            previous_block=request.previous_block_summary or "None",
             action_type=request.action_type or "initial_load",
             action_value=request.action_value or "None"
         )
 
-        # 3. LLM Generation
-        # The prompt asks for "ONLY the HTML".
-        html_response = await generate_text("Generate the next block.", formatted_prompt)
+        # 5. Generate Block
+        response = await generate_block_content("Generate the next block with summary.", formatted_prompt)
 
-        # Clean up markdown code blocks if present
-        clean_html = html_response.replace("```html", "").replace("```", "").strip()
+        # 6. Parse Response
+        html, summary = parse_block_response(response)
 
-        # Summarize what was generated for the next context (simplified)
-        # In a real app, we might ask the LLM to return a summary too, or parse it.
-        # For now, we'll just use the title of the first experience or a generic string.
-        block_summary = f"Displayed block based on: {query}"
-
-        return GenerateBlockResponse(html=clean_html, block_summary=block_summary)
+        return GenerateBlockResponse(
+            html=html,
+            block_summary=summary,
+            experience_ids=experience_ids
+        )
 
     except Exception as e:
         logger.error(f"Block generation error: {e}")
@@ -160,40 +169,63 @@ async def generate_block(request: GenerateBlockRequest):
 @app.post("/api/generate-buttons", response_model=GenerateButtonsResponse)
 async def generate_buttons(request: GenerateButtonsRequest):
     try:
-        # Format chat history for the prompt
+        # Format chat history
         history_text = ""
-        for msg in request.chat_history[-6:]:  # Only use last 6 messages for context
+        for msg in request.chat_history[-6:]:
             role = "Visitor" if msg.get("role") == "user" else "Assistant"
             history_text += f"{role}: {msg.get('content', '')}\n"
 
-        visitor_summary = request.visitor_summary or "Unknown visitor"
+        # Build Context Summary
+        context_summary = ""
+        shown_ids = []
+        if request.context:
+            if request.context.recent_block_summary:
+                context_summary += f"Most Recent Block: {request.context.recent_block_summary}\n"
+            if request.context.topics_covered:
+                context_summary += f"Topics Already Covered: {', '.join(request.context.topics_covered)}\n"
+            shown_ids = request.context.shown_experience_ids
 
-        # Construct the prompt
+        # RAG Search (Consistent with block generation)
+        query = request.visitor_summary or "General professional experience"
+        expanded_query = await expand_query(query, request.visitor_summary)
+        
+        experiences = await search_similar_experiences(
+            query=expanded_query,
+            limit=10,
+            shown_ids=shown_ids
+        )
+        rag_results = await format_rag_results(experiences)
+
+        # Construct prompt
         formatted_prompt = BUTTON_GENERATION_PROMPT.format(
-            visitor_summary=visitor_summary,
-            chat_history=history_text if history_text else "No prior conversation"
+            visitor_summary=request.visitor_summary or "Unknown visitor",
+            chat_history=history_text if history_text else "No prior conversation",
+            context_summary=context_summary,
+            rag_results=rag_results
         )
 
-        # Generate buttons using LLM
-        response_text = await generate_text("", formatted_prompt)
+        # Generate using Llama 70B (fast JSON generation)
+        response_text = await generate_button_suggestions(formatted_prompt)
 
-        # Clean up markdown code blocks if present
+        # Parse JSON
         clean_response = response_text.replace("```json", "").replace("```", "").strip()
+        try:
+            buttons_data = json.loads(clean_response)
+        except json.JSONDecodeError:
+             # Try to find JSON in the text
+             match = re.search(r'\[.*\]', clean_response, re.DOTALL)
+             if match:
+                 buttons_data = json.loads(match.group(0))
+             else:
+                 raise
 
-        # Parse JSON response
-        buttons_data = json.loads(clean_response)
-
-        # Convert to SuggestedButton objects
         buttons = [SuggestedButton(label=btn["label"], prompt=btn["prompt"]) for btn in buttons_data]
-
-        logger.info(f"Generated {len(buttons)} suggested buttons")
 
         return GenerateButtonsResponse(buttons=buttons)
 
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, KeyError) as e:
         logger.error(f"Failed to parse button generation response: {e}")
-        logger.error(f"Response was: {response_text}")
-        # Return default buttons as fallback
+        # Fallback
         return GenerateButtonsResponse(buttons=[
             SuggestedButton(label="Experience", prompt="Tell me about your professional experience"),
             SuggestedButton(label="Skills", prompt="What are your key technical skills?"),

@@ -8,28 +8,36 @@ class Experience(BaseModel):
     content: str
     skills: List[str]
     metadata: Dict[str, Any]
-    # embedding field is usually handled internally, not exposed in API often
 
 class ChatRequest(BaseModel):
-    message: Optional[str] = None # Optional because initial load might not have a message
+    message: Optional[str] = None 
     visitor_context: Optional[Dict[str, Any]] = None
-    history: List[Dict[str, str]] = [] # List of {"role": "user"|"ai", "content": "..."}
+    history: List[Dict[str, str]] = [] 
 
 class ChatResponse(BaseModel):
     ready: bool
     visitor_summary: Optional[str] = None
     message: Optional[str] = None
 
+class CompressedContext(BaseModel):
+    recent_block_summary: Optional[str] = None
+    shown_experience_ids: List[str] = []
+    topics_covered: List[str] = []
+
 class GenerateBlockRequest(BaseModel):
     visitor_summary: str
-    previous_block_summary: Optional[str] = None
+    context: Optional[CompressedContext] = None 
     action_type: Optional[str] = None
     action_value: Optional[str] = None
     regenerate: bool = False
+    
+    # Keep for backward compatibility 
+    previous_block_summary: Optional[str] = None
 
 class GenerateBlockResponse(BaseModel):
     html: str
     block_summary: str
+    experience_ids: List[str] = []
 
 class SuggestedButton(BaseModel):
     label: str
@@ -38,6 +46,7 @@ class SuggestedButton(BaseModel):
 class GenerateButtonsRequest(BaseModel):
     visitor_summary: Optional[str] = None
     chat_history: List[Dict[str, str]] = []
+    context: Optional[CompressedContext] = None
 
 class GenerateButtonsResponse(BaseModel):
     buttons: List[SuggestedButton]

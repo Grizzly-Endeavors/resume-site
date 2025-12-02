@@ -17,21 +17,40 @@ BLOCK_GENERATION_SYSTEM_PROMPT = """
 You are generating an interactive HTML section for a resume website.
 
 VISITOR CONTEXT: {visitor_summary}
+
+CONVERSATION CONTEXT:
+{context_summary}
+
 RELEVANT EXPERIENCES: {rag_results}
-PREVIOUS BLOCK SUMMARY: {previous_block}
+
 USER ACTION: {action_type} - {action_value}
 
 Generate a complete HTML block that:
-1. Highlights the most relevant experiences for this visitor.
-2. Uses clean, readable styling (inline <style> is allowed and encouraged for component isolation, prefer dark mode styling). 
-3. Be creative and dynamic in your design. Experiment with layouts, typography, and visual hierarchy to make the section engaging and memorable. Use animations or transitions sparingly to enhance interactivity without overwhelming the user.
-4. Ensure accessibility by using semantic HTML elements and providing sufficient color contrast, readable font sizes, and clear focus indicators for interactive elements.
-5. Be detailed and specific in content, avoiding generic statements. Use concrete examples and data points to illustrate achievements and skills.
-6. Long blocks are allowed, but prioritize quality and relevance over quantity.
-7. You can summarize multiple experiences into a single cohesive narrative if it improves clarity and engagement.
-8. Aim to be factual and avoid speculative or assumptive content. Only include information supported by the provided context.
+1. Highlights the most relevant experiences for this visitor
+2. AVOIDS repeating detailed information from the conversation context above
+3. If certain topics have been covered, explore new angles or different projects
+4. Uses clean, readable dark-mode styling (Use inline style="..." attributes ONLY. Do NOT use <style> tags as they conflict with other blocks. Use CSS variables like var(--primary-color) for theming)
+5. Be creative and dynamic with layouts, typography, and visual hierarchy
+6. Ensure accessibility (semantic HTML, color contrast, readable fonts)
+7. Be detailed and specific with concrete examples and data points
+8. Long blocks are allowed when they add value
+9. Summarize multiple experiences into cohesive narratives when appropriate
+10. Be factual and avoid speculation
 
-Return ONLY the HTML string. No markdown code fences (```html). No JSON wrapping.
+Format your response as:
+<block>
+[Your complete HTML content here - this will be inserted directly into the page]
+</block>
+<summary>
+[One concise sentence describing what this block covered - used for context tracking]
+</summary>
+
+IMPORTANT:
+- Do NOT use markdown code fences (```html)
+- The <block> tags are for parsing only, not part of the HTML
+- The summary should be semantic (e.g., "Explored AI/ML projects and technical leadership at Company X")
+- Do not use span tags for styling.
+- Ensure all information is accurate and based on the provided context
 """
 
 BUTTON_GENERATION_PROMPT = """
@@ -40,24 +59,35 @@ You are generating suggested prompt buttons for an AI-powered interactive resume
 CONTEXT:
 - Visitor Summary: {visitor_summary}
 - Recent Chat History: {chat_history}
+- Conversation Context: {context_summary}
 
-Generate 3 diverse, interesting prompts that the visitor might want to ask. These prompts should:
-1. Be specific and actionable
-2. Explore different aspects of the candidate's experience (technical skills, leadership, projects, etc.)
-3. Be relevant to the visitor's interests if known, or generally interesting if unknown
-4. Be phrased as natural questions or requests (e.g., "Tell me about your AI projects", "What leadership experience do you have?")
+RELEVANT CONTENT:
+{rag_results}
 
-Return ONLY a JSON array of objects with this structure:
+Generate 3 diverse, interesting prompts that:
+1. Are specific and actionable
+2. Explore DIFFERENT aspects than those already covered in the Conversation Context
+3. Are relevant to the visitor's interests
+4. Are phrased as natural questions (e.g., "Tell me about your AI projects")
+5. CRITICAL: Ensure every suggestion can be answered using ONLY the information in RELEVANT CONTENT. Do not hallucinate capabilities or projects not listed there.
+
+Return ONLY a JSON array:
 [
-  {{"label": "Short button text (2-4 words)", "prompt": "Full prompt text"}},
-  {{"label": "Short button text", "prompt": "Full prompt text"}},
-  {{"label": "Short button text", "prompt": "Full prompt text"}}
+  {{"label": "Short label (2-4 words)", "prompt": "Full question text"}},
+  {{"label": "Short label", "prompt": "Full question text"}},
+  {{"label": "Short label", "prompt": "Full question text"}}
 ]
-
-Examples:
-- {{"label": "AI Projects", "prompt": "Tell me about your experience with AI and machine learning projects"}}
-- {{"label": "Leadership", "prompt": "What leadership and team management experience do you have?"}}
-- {{"label": "Technical Stack", "prompt": "What technologies and frameworks are you most proficient in?"}}
 
 Return ONLY the JSON array. No markdown, no explanation.
 """
+
+QUERY_EXPANSION_PROMPT = """Given a visitor's query about a candidate's resume, expand it with 5-10 related terms, synonyms, and semantic variations for better vector search.
+
+Visitor Context: {visitor_summary}
+Original Query: {query}
+
+Return comma-separated terms only. No explanations.
+
+Example:
+Input: "leadership experience"
+Output: team management, mentoring, coaching, project management, stakeholder communication, organizational skills, agile"""

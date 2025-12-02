@@ -30,7 +30,7 @@ body {
     line-height: 1.7;
     color: var(--text-color);
     margin: 0;
-    padding: 0;
+    padding-bottom: 200px;
     background: var(--bg-color);
     background-image:
         radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
@@ -238,154 +238,10 @@ body {
     transform: none;
 }
 
-/* Blocks */
-.resume-block {
-    margin-bottom: 80px;
-    opacity: 0;
-    animation: fadeIn 0.8s ease-out forwards;
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--glass-border);
-    border-radius: 24px;
-    padding: 36px;
-    box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    transition: all 0.4s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.resume-block::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 2px;
-    background: var(--hero-gradient);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.resume-block:hover::before {
-    opacity: 1;
-}
-
-.resume-block h2 {
-    color: var(--primary-color);
-    border-bottom: 2px solid var(--border-color);
-    padding-bottom: 16px;
-    margin-top: 0;
-    margin-bottom: 24px;
-    font-size: 1.75rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    background: var(--hero-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.experience-item {
-    margin-bottom: 24px;
-    padding-bottom: 24px;
-    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-}
-
-.experience-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.experience-item h3 {
-    color: #f8fafc;
-    font-size: 1.3rem;
-    margin-bottom: 8px;
-    font-weight: 600;
-}
-
-.experience-item p {
-    color: #cbd5e1;
-    line-height: 1.7;
-    margin-bottom: 8px;
-}
-
-.experience-item ul {
-    margin-top: 12px;
-    padding-left: 20px;
-}
-
-.experience-item li {
-    color: #cbd5e1;
-    margin-bottom: 6px;
-    line-height: 1.6;
-}
-
-/* Action Buttons in Generated Blocks */
-.actions {
-    margin-top: 28px;
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.actions button {
-    background: transparent;
-    border: 1.5px solid var(--primary-color);
-    color: var(--primary-color);
-    padding: 10px 20px;
-    border-radius: 24px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.92rem;
-    font-weight: 500;
-    position: relative;
-    overflow: hidden;
-}
-
-.actions button::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    border-radius: 50%;
-    background: var(--hero-gradient);
-    transition: width 0.4s ease, height 0.4s ease, top 0.4s ease, left 0.4s ease;
-    transform: translate(-50%, -50%);
-    z-index: -1;
-}
-
-.actions button:hover::before {
-    width: 300px;
-    height: 300px;
-}
-
-.actions button:hover {
-    color: white;
-    border-color: transparent;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
 
 /* Loading */
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 #loading-indicator {
@@ -587,7 +443,7 @@ body {
 /* AI Disclaimer */
 .ai-disclaimer {
     position: fixed;
-    left: 24px;
+    left: max(24px, calc(50% - 450px - 280px));
     top: 50%;
     transform: translateY(-50%);
     background: rgba(30, 41, 59, 0.98);
@@ -652,8 +508,8 @@ body {
 /* Regenerate Button */
 .regenerate-btn {
     position: absolute;
-    bottom: -60px;
-    left: -60px;
+    bottom: 50px;
+    left: -50px;
     background: rgba(30, 41, 59, 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -755,22 +611,13 @@ body {
         font-size: 1rem;
     }
 
-    .chat-container,
-    .resume-block {
+    .chat-container {
         padding: 24px;
         border-radius: 20px;
     }
 
     .container {
         padding: 0 16px;
-    }
-
-    .resume-block h2 {
-        font-size: 1.5rem;
-    }
-
-    .experience-item h3 {
-        font-size: 1.15rem;
     }
 
     .suggested-buttons {
@@ -804,7 +651,7 @@ body {
     }
 
     body {
-        padding-bottom: 350px;
+        padding-bottom: 200px !important;
     }
 
     .ai-disclaimer {
@@ -855,8 +702,7 @@ body {
         font-size: 2rem;
     }
 
-    .chat-container,
-    .resume-block {
+    .chat-container {
         padding: 20px;
     }
 
@@ -865,7 +711,6 @@ body {
         padding: 14px 16px;
     }
 
-    .actions button,
     .suggested-buttons button {
         font-size: 0.8rem;
     }

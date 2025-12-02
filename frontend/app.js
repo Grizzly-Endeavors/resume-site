@@ -12,10 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const aiDisclaimer = document.getElementById('ai-disclaimer');
 
     let visitorSummary = null;
-    let previousBlockSummary = null;
     let isChatting = true;
     let chatHistoryData = []; // Stores {role: 'user'|'ai', content: string}
     let blockDataMap = new Map(); // Maps block ID to {actionType, actionValue, blockSummary}
+
+    // Context Tracker
+    let contextTracker = {
+        recentBlockSummary: null,
+        shownExperienceIds: new Set(),
+        topicsCovered: new Set()
+    };
 
     // --- Chat Logic ---
 
@@ -26,16 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
         chatHistory.appendChild(div);
         chatHistory.scrollTop = chatHistory.scrollHeight;
         
-        // Add to history data
-        // We map 'ai' in UI to 'assistant' for backend/LLM standard usually, 
-        // but let's stick to what the backend expects. The backend likely wants 'user' and 'assistant' (or 'ai').
-        // Let's use 'user' and 'model' or 'assistant'. 
-        // For simplicity in this app, we'll store what we need.
         chatHistoryData.push({ role: sender === 'user' ? 'user' : 'assistant', content: text });
     }
 
     async function sendChat(message) {
-        if (!message && chatHistoryData.length > 0) return; // Don't send empty if not start
+        if (!message && chatHistoryData.length > 0) return; 
         
         if (message) {
             appendMessage(message, 'user');
@@ -58,14 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (data.ready) {
-                // Transition to block generation
                 visitorSummary = data.visitor_summary;
                 isChatting = false;
                 appendMessage("Thanks! Generating your personalized view...", 'ai');
                 
-                // Hide chat input after a delay or minimize it
                 setTimeout(() => {
-                    chatSection.classList.add('hidden'); // Or just minimize
+                    chatSection.classList.add('hidden'); 
                     startBlockGeneration();
                 }, 1500);
             } else {
@@ -82,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Initial Greeting
     async function startChat() {
         chatInput.disabled = true;
         chatSend.disabled = true;
@@ -119,12 +117,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     async function startBlockGeneration() {
-        // Show the bottom chatbar and AI disclaimer
+        await generateBlock('initial_load', null);
+
         bottomChatbar.classList.remove('hidden');
         aiDisclaimer.classList.remove('hidden');
         console.log('Bottom chatbar and AI disclaimer shown');
 
-        await generateBlock('initial_load', null);
         await loadSuggestedButtons();
     }
 
@@ -132,18 +130,39 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingIndicator.classList.remove('hidden');
 
         try {
+            // Build context object
+            const context = {
+                recent_block_summary: contextTracker.recentBlockSummary,
+                shown_experience_ids: Array.from(contextTracker.shownExperienceIds),
+                topics_covered: Array.from(contextTracker.topicsCovered)
+            };
+
             const res = await fetch('/api/generate-block', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     visitor_summary: visitorSummary,
-                    previous_block_summary: previousBlockSummary,
+                    context: context,
                     action_type: actionType,
                     action_value: actionValue
                 })
             });
 
             const data = await res.json();
+
+            // Update context tracker
+            contextTracker.recentBlockSummary = data.block_summary;
+
+            if (data.experience_ids) {
+                data.experience_ids.forEach(id => {
+                    contextTracker.shownExperienceIds.add(id);
+                });
+            }
+            
+            const topic = extractTopicFromSummary(data.block_summary);
+            if (topic) {
+                contextTracker.topicsCovered.add(topic);
+            }
 
             // Generate unique ID for this block
             const newBlockId = blockId || 'block-' + Date.now();
@@ -163,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Set wrapper content
             wrapper.innerHTML = data.html;
 
-            // Add regenerate button to wrapper (outside the resume-block)
+            // Add regenerate button
             const regenerateBtn = document.createElement('button');
             regenerateBtn.className = 'regenerate-btn';
             regenerateBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -175,21 +194,16 @@ document.addEventListener('DOMContentLoaded', () => {
             wrapper.appendChild(regenerateBtn);
 
             if (blockId) {
-                // Replace existing block
                 const existingBlock = document.getElementById(blockId);
                 if (existingBlock) {
                     existingBlock.replaceWith(wrapper);
                 }
             } else {
-                // Append new block
                 contentStream.appendChild(wrapper);
-                previousBlockSummary = data.block_summary;
             }
 
-            // Scroll to block
             wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-            // Regenerate suggested buttons after each block
             await loadSuggestedButtons();
 
         } catch (err) {
@@ -198,6 +212,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             loadingIndicator.classList.add('hidden');
         }
+    }
+
+    function extractTopicFromSummary(summary) {
+        if (!summary) return null;
+        const match = summary.match(/(?:Explored|Displayed|Showed|Highlighted)\s+(.+?)(?:\s+at|\s+from|\s+in|$)/i);
+        if (match && match[1]) {
+            return match[1].trim();
+        }
+        return summary.substring(0, 50).trim();
     }
 
     async function regenerateBlock(blockId) {
@@ -228,22 +251,29 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadSuggestedButtons() {
         try {
             console.log('Loading suggested buttons...');
+
+            // Build context object
+            const context = {
+                recent_block_summary: contextTracker.recentBlockSummary,
+                shown_experience_ids: Array.from(contextTracker.shownExperienceIds),
+                topics_covered: Array.from(contextTracker.topicsCovered)
+            };
+
             const res = await fetch('/api/generate-buttons', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     visitor_summary: visitorSummary,
-                    chat_history: chatHistoryData
+                    chat_history: chatHistoryData,
+                    context: context
                 })
             });
 
             const data = await res.json();
             console.log('Received buttons:', data);
 
-            // Clear existing buttons
             suggestedButtons.innerHTML = '';
 
-            // Add new buttons
             data.buttons.forEach(btn => {
                 const button = document.createElement('button');
                 button.textContent = btn.label;
@@ -263,10 +293,8 @@ document.addEventListener('DOMContentLoaded', () => {
         chatbarInput.disabled = true;
         chatbarSend.disabled = true;
 
-        // Add to chat history
         chatHistoryData.push({ role: 'user', content: message });
 
-        // Generate a new block based on the message
         await generateBlock('user_question', message);
 
         chatbarInput.disabled = false;
@@ -279,6 +307,5 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') handleChatbarMessage(chatbarInput.value.trim());
     });
 
-    // Start
     startChat();
 });

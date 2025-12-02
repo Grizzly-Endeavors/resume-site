@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 import os
-from llm import generate_text
+from llm import generate_text, generate_button_suggestions, expand_query, generate_block_content
 
 @pytest.mark.asyncio
 async def test_generate_text_cerebras_success():
@@ -41,3 +41,35 @@ async def test_generate_text_all_fail():
                 await generate_text("prompt", "system")
             
             assert "All LLM providers failed" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_generate_button_suggestions():
+    with patch("llm.cerebras_call", new_callable=AsyncMock) as mock_cerebras:
+        mock_cerebras.return_value = '["button1"]'
+        
+        res = await generate_button_suggestions("system_prompt")
+        
+        mock_cerebras.assert_awaited_once()
+        assert res == '["button1"]'
+
+@pytest.mark.asyncio
+async def test_expand_query():
+    with patch("llm.cerebras_call", new_callable=AsyncMock) as mock_cerebras:
+        mock_cerebras.return_value = "term1, term2"
+        
+        query = "original"
+        res = await expand_query(query, "visitor")
+        
+        # Should combine
+        assert "original term1, term2" in res
+        mock_cerebras.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_generate_block_content():
+    with patch("llm.cerebras_call", new_callable=AsyncMock) as mock_cerebras:
+        mock_cerebras.return_value = "block content"
+        
+        res = await generate_block_content("prompt", "system")
+        
+        assert res == "block content"
+        mock_cerebras.assert_awaited_once()
