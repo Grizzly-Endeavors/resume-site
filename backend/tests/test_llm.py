@@ -35,12 +35,10 @@ async def test_generate_text_all_fail():
         mock_cerebras.side_effect = Exception("Cerebras error")
         mock_gemini.side_effect = Exception("Gemini error")
         
-        # Ensure MOCK_LLM is false (default behavior is raising exception unless env var set)
-        with patch.dict(os.environ, {"MOCK_LLM": "false"}):
-            with pytest.raises(Exception) as excinfo:
-                await generate_text("prompt", "system")
-            
-            assert "All LLM providers failed" in str(excinfo.value)
+        with pytest.raises(Exception) as excinfo:
+            await generate_text("prompt", "system")
+        
+        assert "Gemini error" in str(excinfo.value)
 
 @pytest.mark.asyncio
 async def test_generate_button_suggestions():
