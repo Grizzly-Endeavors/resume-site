@@ -2,6 +2,7 @@ import os
 import logging
 import asyncio
 import re
+import time
 from typing import List, Literal, Optional, Callable
 from enum import Enum
 
@@ -24,19 +25,23 @@ class ModelSize(Enum):
 MODEL_CONFIG = {
     ModelSize.SMALL: {
         "main": "llama3.1-8b",
-        "fallback": "gemini-2.5-flash"
+        "fallback": "gemini-flash-lite-latest"
     },
     ModelSize.MEDIUM: {
         "main": "qwen-3-32b",
-        "fallback": "gemini-2.5-flash"
+        "fallback": "gemini-flash-lite-latest"
     },
     ModelSize.LARGE: {
         "main": "qwen-3-235b-a22b-instruct-2507",
-        "fallback": "gemini-2.5-flash"
+        "fallback": "gemini-flash-latest"
     }
 }
 
 EMBEDDING_MODEL = "models/text-embedding-004"
+
+# Retry configuration
+MAX_RETRIES = 3
+BASE_BACKOFF_SECONDS = 1.0
 
 class LLMHandler:
     """Handles LLM client initialization and request routing with fallback support."""
@@ -64,7 +69,7 @@ class LLMHandler:
                 logger.warning(f"Failed to configure Gemini: {e}")
 
     async def _cerebras_call(self, prompt: str, system_prompt: str, model: str, timeout: int = 10) -> str:
-        """Make a Cerebras API call."""
+        """Make a Cerebras API call with retry logic."""
         if not self.cerebras_client:
             raise Exception("Cerebras client not initialized")
 
@@ -82,10 +87,24 @@ class LLMHandler:
             clean_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
             return clean_content
 
-        return await asyncio.to_thread(_call)
+        # Retry logic with exponential backoff
+        last_exception = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                return await asyncio.to_thread(_call)
+            except Exception as e:
+                last_exception = e
+                if attempt < MAX_RETRIES - 1:
+                    backoff_time = BASE_BACKOFF_SECONDS * (2 ** attempt)
+                    logger.warning(f"Cerebras call attempt {attempt + 1}/{MAX_RETRIES} failed: {e}. Retrying in {backoff_time}s...")
+                    await asyncio.sleep(backoff_time)
+                else:
+                    logger.error(f"Cerebras call failed after {MAX_RETRIES} attempts: {e}")
+
+        raise last_exception
 
     async def _gemini_call(self, prompt: str, system_prompt: str, timeout: int = 30) -> str:
-        """Make a Gemini API call."""
+        """Make a Gemini API call with retry logic."""
         if not self.gemini_configured:
             raise Exception("Gemini API key not configured")
 
@@ -97,14 +116,33 @@ class LLMHandler:
             response = model.generate_content(prompt)
             return response.text
 
-        return await asyncio.to_thread(_call)
+        # Retry logic with exponential backoff
+        last_exception = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                return await asyncio.to_thread(_call)
+            except Exception as e:
+                last_exception = e
+                if attempt < MAX_RETRIES - 1:
+                    backoff_time = BASE_BACKOFF_SECONDS * (2 ** attempt)
+                    logger.warning(f"Gemini call attempt {attempt + 1}/{MAX_RETRIES} failed: {e}. Retrying in {backoff_time}s...")
+                    await asyncio.sleep(backoff_time)
+                else:
+                    logger.error(f"Gemini call failed after {MAX_RETRIES} attempts: {e}")
+
+        raise last_exception
 
     async def handle_fallback(self, main_callable: Callable, fallback_callable: Callable) -> str:
-        """Try main provider, fallback to secondary if it fails."""
+        """
+        Try main provider with retries, fallback to secondary if all retries fail.
+
+        The main provider will retry MAX_RETRIES times with exponential backoff
+        before falling back to the secondary provider.
+        """
         try:
             return await main_callable()
         except Exception as e:
-            logger.warning(f"Main provider failed: {e}. Falling back to secondary provider.")
+            logger.warning(f"Main provider failed after all retries: {e}. Falling back to secondary provider.")
             return await fallback_callable()
 
     async def llm_call(
