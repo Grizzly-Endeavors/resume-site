@@ -3,9 +3,9 @@ import json
 import re
 from typing import List, Optional, Dict, Any
 
-from llm import llm_handler, ModelSize
+from ai.llm import llm_handler, ModelSize
 from rag import search_similar_experiences, format_rag_results
-from prompts import (
+from ai.prompts import (
     CHAT_SYSTEM_PROMPT,
     BLOCK_GENERATION_SYSTEM_PROMPT,
     BUTTON_GENERATION_PROMPT,

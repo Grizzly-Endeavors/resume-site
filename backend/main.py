@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from contextlib import asynccontextmanager
 
 from db import init_db, close_db_pool
-from generation import generation_handler
+from ai.generation import generation_handler
 from models import ChatRequest, ChatResponse, GenerateBlockRequest, GenerateBlockResponse, GenerateButtonsRequest, GenerateButtonsResponse, SuggestedButton, CompressedContext
 
 # Configure logging

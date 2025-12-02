@@ -1,7 +1,7 @@
 import json
 import logging
 from db import get_db_pool
-from llm import llm_handler
+from ai.llm import llm_handler
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)

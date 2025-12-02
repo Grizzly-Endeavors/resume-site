@@ -3,7 +3,7 @@ import os
 import re
 from typing import List, Dict, Any
 from db import init_db, get_db_pool, close_db_pool
-from llm import llm_handler
+from ai.llm import llm_handler
 import json
 
 def parse_markdown_file(file_path: str) -> Dict[str, Any]:

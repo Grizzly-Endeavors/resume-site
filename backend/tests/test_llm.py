@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 import os
-from llm import generate_text, generate_button_suggestions, expand_query, generate_block_content
+from ai.llm import generate_text, generate_button_suggestions, expand_query, generate_block_content
 
 @pytest.mark.asyncio
 async def test_generate_text_cerebras_success():
