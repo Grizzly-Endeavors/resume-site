@@ -16,7 +16,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Models
 CEREBRAS_MODEL = "qwen-3-32b" # Updated from llama3.1-8b
 GEMINI_MODEL = "gemini-2.5-flash"
-EMBEDDING_MODEL = "models/gemini-embedding-001" 
+EMBEDDING_MODEL = "models/text-embedding-004" 
 
 # Initialize Clients
 cerebras_client = None
@@ -86,21 +86,25 @@ async def generate_text(prompt: str, system_prompt: str) -> str:
                  return "<!-- Mock Error Fallback --> <p>AI Unavailable. Showing static backup.</p>"
             raise Exception(f"All LLM providers failed. Cerebras: {e}, Gemini: {e2}")
 
-async def generate_embedding(text: str) -> List[float]:
+async def generate_embedding(text: str, task_type: str = "retrieval_document") -> List[float]:
     """
-    Generates embedding using Gemini API (gemini-embedding-001).
+    Generates embedding using Gemini API (text-embedding-004).
+
+    Args:
+        text: The text to embed
+        task_type: Either "retrieval_document" for stored content or "retrieval_query" for search queries
     """
     if not GEMINI_API_KEY or GEMINI_API_KEY.startswith("placeholder"):
         # Mock
         return [0.0] * 768
 
     def _call():
-        # model="models/embedding-001" or "models/gemini-embedding-001"
         result = genai.embed_content(
             model=EMBEDDING_MODEL,
             content=text,
-            task_type="retrieval_document", 
-            title="Resume Section" # Optional, sometimes helps
+            task_type=task_type,
+            title="Resume Section" if task_type == "retrieval_document" else None,
+            output_dimensionality=768
         )
         return result['embedding']
 

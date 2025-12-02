@@ -26,8 +26,15 @@ Generate a complete, self-contained HTML block that:
 2. Uses clean, readable styling (inline <style> is allowed and encouraged for component isolation).
 3. Makes key items clickable with `data-item-id="ID"` attributes.
 4. Includes 3 suggested action buttons at the bottom for the user to click next.
+   IMPORTANT: Make the button action values SPECIFIC and DIFFERENT from each other. They should explore different aspects:
+   - Different skill areas (e.g., "Show AI and machine learning projects", "Show DevOps and infrastructure work", "Show leadership experience")
+   - Different project types (e.g., "Show personal projects", "Show professional roles", "Show volunteer work")
+   - Different time periods or specific technologies
+   The action values should be descriptive queries that will retrieve DIFFERENT experiences.
 5. Is visually consistent with a modern, clean professional resume site.
-6. If this is a regeneration, try to present the information differently.
+6. If this is a regeneration, try to present the information differently and suggest exploring areas NOT yet shown.
+7. Be creative and dynamic in your design. Experiment with layouts, typography, and visual hierarchy to make the section engaging and memorable. Use animations or transitions sparingly to enhance interactivity without overwhelming the user.
+8. Ensure accessibility by using semantic HTML elements and providing sufficient color contrast, readable font sizes, and clear focus indicators for interactive elements.
 
 Structure the HTML like this (example):
 <section class="resume-block">

@@ -117,8 +117,17 @@ async def generate_block(request: GenerateBlockRequest):
         query = f"{request.visitor_summary}"
         if request.action_value:
             query += f" {request.action_value}"
-            
-        experiences = await search_similar_experiences(query)
+
+        logger.info(f"[RAG] Query: '{query}'")
+        logger.info(f"[RAG] Action Type: {request.action_type}, Action Value: {request.action_value}")
+
+        experiences = await search_similar_experiences(query, limit=10)
+
+        # Log what was retrieved
+        logger.info(f"[RAG] Retrieved {len(experiences)} experiences:")
+        for i, exp in enumerate(experiences, 1):
+            logger.info(f"  {i}. [{exp.get('similarity', 0):.4f}] {exp['title']} (type: {exp['metadata'].get('type', 'unknown')})")
+
         rag_results = await format_rag_results(experiences)
         
         # 2. Prompt Construction

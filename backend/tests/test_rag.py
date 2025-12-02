@@ -36,7 +36,7 @@ async def test_search_similar_experiences():
         results = await search_similar_experiences(query)
 
         # Assertions
-        mock_gen_embedding.assert_awaited_once_with(query)
+        mock_gen_embedding.assert_awaited_once_with(query, task_type="retrieval_query")
         mock_get_pool.assert_awaited_once()
         mock_conn.fetch.assert_awaited_once()
         

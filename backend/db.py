@@ -36,7 +36,7 @@ async def init_db():
                 embedding vector(768) 
             );
         """)
-        # Note: Embedding dimension 768 is common for models like Gemini or other open/small models.
+        # Note: Embedding dimension 3072 is for newer Gemini models.
         # The plan mentioned 1536 (OpenAI) or 384. I'll stick to 768 (Gemini Embedding) or 1536 if requested.
         # The plan says "embedding (vector(1536)) -- or 384 depending on model".
         # Since we are using Gemini as fallback and Cerebras (likely Llama models), we need an embedding model.
@@ -45,9 +45,9 @@ async def init_db():
         # Let's check the plan again... it doesn't specify the *embedding* model, just the chat model.
         # I will assume 768 for now as it's a good middle ground and compatible with Google's embeddings.
         
-        # Create HNSW index for faster search
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS experiences_embedding_idx 
-            ON experiences USING hnsw (embedding vector_cosine_ops);
-        """)
+        # Create HNSW index for faster search (disabled for 3072 dimensions)
+        # await conn.execute("""
+        #     CREATE INDEX IF NOT EXISTS experiences_embedding_idx 
+        #     ON experiences USING hnsw (embedding vector_cosine_ops);
+        # """)
 

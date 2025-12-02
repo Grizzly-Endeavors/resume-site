@@ -1,15 +1,20 @@
 import json
+import logging
 from db import get_db_pool
 from llm import generate_embedding
 from typing import List, Dict, Any
 
+logger = logging.getLogger(__name__)
+
 async def search_similar_experiences(query: str, limit: int = 5) -> List[Dict[str, Any]]:
     pool = await get_db_pool()
-    query_embedding = await generate_embedding(query)
-    
+
+    logger.info(f"[RAG Search] Generating embedding for query: '{query}'")
+    query_embedding = await generate_embedding(query, task_type="retrieval_query")
+
     # Format embedding for pgvector
     embedding_str = f"[{','.join(map(str, query_embedding))}]"
-    
+
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
             SELECT id, title, content, skills, metadata, 
