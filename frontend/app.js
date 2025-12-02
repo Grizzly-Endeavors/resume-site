@@ -5,11 +5,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const contentStream = document.getElementById('content-stream');
     const loadingIndicator = document.getElementById('loading-indicator');
     const chatSection = document.getElementById('chat-section');
+    const bottomChatbar = document.getElementById('bottom-chatbar');
+    const chatbarInput = document.getElementById('chatbar-input');
+    const chatbarSend = document.getElementById('chatbar-send');
+    const suggestedButtons = document.getElementById('suggested-buttons');
+    const aiDisclaimer = document.getElementById('ai-disclaimer');
 
     let visitorSummary = null;
     let previousBlockSummary = null;
     let isChatting = true;
     let chatHistoryData = []; // Stores {role: 'user'|'ai', content: string}
+    let blockDataMap = new Map(); // Maps block ID to {actionType, actionValue, blockSummary}
 
     // --- Chat Logic ---
 
@@ -113,12 +119,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     async function startBlockGeneration() {
+        // Show the bottom chatbar and AI disclaimer
+        bottomChatbar.classList.remove('hidden');
+        aiDisclaimer.classList.remove('hidden');
+        console.log('Bottom chatbar and AI disclaimer shown');
+
         await generateBlock('initial_load', null);
+        await loadSuggestedButtons();
     }
 
-    async function generateBlock(actionType, actionValue) {
+    async function generateBlock(actionType, actionValue, blockId = null) {
         loadingIndicator.classList.remove('hidden');
-        
+
         try {
             const res = await fetch('/api/generate-block', {
                 method: 'POST',
@@ -130,24 +142,55 @@ document.addEventListener('DOMContentLoaded', () => {
                     action_value: actionValue
                 })
             });
-            
+
             const data = await res.json();
-            
+
+            // Generate unique ID for this block
+            const newBlockId = blockId || 'block-' + Date.now();
+
+            // Store block data for regeneration
+            blockDataMap.set(newBlockId, {
+                actionType: actionType,
+                actionValue: actionValue,
+                blockSummary: data.block_summary
+            });
+
             // Create wrapper for new block
             const wrapper = document.createElement('div');
+            wrapper.className = 'block-wrapper';
+            wrapper.id = newBlockId;
+
+            // Set wrapper content
             wrapper.innerHTML = data.html;
-            
-            // Execute scripts if any (innerHTML doesn't exec scripts by default)
-            // But for safety/simplicity we rely on window.app.handleAction defined above
-            // and inline onclick handlers which DO work with innerHTML in many cases 
-            // OR we can explicitly eval script tags if we really need them.
-            // The prompt asks for onclick="window.app.handleAction...", which works.
-            
-            contentStream.appendChild(wrapper);
-            previousBlockSummary = data.block_summary;
-            
-            // Scroll to new block
+
+            // Add regenerate button to wrapper (outside the resume-block)
+            const regenerateBtn = document.createElement('button');
+            regenerateBtn.className = 'regenerate-btn';
+            regenerateBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>`;
+            regenerateBtn.title = 'Regenerate this block';
+            regenerateBtn.onclick = () => regenerateBlock(newBlockId);
+
+            wrapper.appendChild(regenerateBtn);
+
+            if (blockId) {
+                // Replace existing block
+                const existingBlock = document.getElementById(blockId);
+                if (existingBlock) {
+                    existingBlock.replaceWith(wrapper);
+                }
+            } else {
+                // Append new block
+                contentStream.appendChild(wrapper);
+                previousBlockSummary = data.block_summary;
+            }
+
+            // Scroll to block
             wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Regenerate suggested buttons after each block
+            await loadSuggestedButtons();
 
         } catch (err) {
             console.error(err);
@@ -156,6 +199,85 @@ document.addEventListener('DOMContentLoaded', () => {
             loadingIndicator.classList.add('hidden');
         }
     }
+
+    async function regenerateBlock(blockId) {
+        const blockData = blockDataMap.get(blockId);
+        if (!blockData) {
+            console.error('Block data not found for:', blockId);
+            return;
+        }
+
+        const btn = document.querySelector(`#${blockId} .regenerate-btn`);
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('spinning');
+        }
+
+        try {
+            await generateBlock(blockData.actionType, blockData.actionValue, blockId);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('spinning');
+            }
+        }
+    }
+
+    // --- Bottom Chatbar Logic ---
+
+    async function loadSuggestedButtons() {
+        try {
+            console.log('Loading suggested buttons...');
+            const res = await fetch('/api/generate-buttons', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    visitor_summary: visitorSummary,
+                    chat_history: chatHistoryData
+                })
+            });
+
+            const data = await res.json();
+            console.log('Received buttons:', data);
+
+            // Clear existing buttons
+            suggestedButtons.innerHTML = '';
+
+            // Add new buttons
+            data.buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.textContent = btn.label;
+                button.onclick = () => handleChatbarMessage(btn.prompt);
+                suggestedButtons.appendChild(button);
+            });
+            console.log(`Added ${data.buttons.length} buttons to the UI`);
+        } catch (err) {
+            console.error('Failed to load suggested buttons:', err);
+        }
+    }
+
+    async function handleChatbarMessage(message) {
+        if (!message.trim()) return;
+
+        chatbarInput.value = '';
+        chatbarInput.disabled = true;
+        chatbarSend.disabled = true;
+
+        // Add to chat history
+        chatHistoryData.push({ role: 'user', content: message });
+
+        // Generate a new block based on the message
+        await generateBlock('user_question', message);
+
+        chatbarInput.disabled = false;
+        chatbarSend.disabled = false;
+        chatbarInput.focus();
+    }
+
+    chatbarSend.addEventListener('click', () => handleChatbarMessage(chatbarInput.value.trim()));
+    chatbarInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleChatbarMessage(chatbarInput.value.trim());
+    });
 
     // Start
     startChat();

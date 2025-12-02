@@ -21,38 +21,43 @@ RELEVANT EXPERIENCES: {rag_results}
 PREVIOUS BLOCK SUMMARY: {previous_block}
 USER ACTION: {action_type} - {action_value}
 
-Generate a complete, self-contained HTML block that:
-1. Highlights the most relevant experiences for this visitor based on the RAG results.
-2. Uses clean, readable styling (inline <style> is allowed and encouraged for component isolation).
-3. Makes key items clickable with `data-item-id="ID"` attributes.
-4. Includes 3 suggested action buttons at the bottom for the user to click next.
-   IMPORTANT: Make the button action values SPECIFIC and DIFFERENT from each other. They should explore different aspects:
-   - Different skill areas (e.g., "Show AI and machine learning projects", "Show DevOps and infrastructure work", "Show leadership experience")
-   - Different project types (e.g., "Show personal projects", "Show professional roles", "Show volunteer work")
-   - Different time periods or specific technologies
-   The action values should be descriptive queries that will retrieve DIFFERENT experiences.
-5. Is visually consistent with a modern, clean professional resume site.
-6. If this is a regeneration, try to present the information differently and suggest exploring areas NOT yet shown.
-7. Be creative and dynamic in your design. Experiment with layouts, typography, and visual hierarchy to make the section engaging and memorable. Use animations or transitions sparingly to enhance interactivity without overwhelming the user.
-8. Ensure accessibility by using semantic HTML elements and providing sufficient color contrast, readable font sizes, and clear focus indicators for interactive elements.
-
-Structure the HTML like this (example):
-<section class="resume-block">
-  <style>
-    .resume-block {{ padding: 20px; border-bottom: 1px solid #eee; }}
-    /* ... other styles ... */
-  </style>
-  <h2>Relevant Experience</h2>
-  <div class="experience-item" data-item-id="123">
-    <h3>Senior Engineer at Tech Corp</h3>
-    <p>...</p>
-  </div>
-  
-  <div class="actions">
-    <button onclick="window.app.handleAction('suggested_button', 'Show leadership skills')">Show leadership skills</button>
-    <!-- ... -->
-  </div>
-</section>
+Generate a complete HTML block that:
+1. Highlights the most relevant experiences for this visitor.
+2. Uses clean, readable styling (inline <style> is allowed and encouraged for component isolation, prefer dark mode styling). 
+3. Be creative and dynamic in your design. Experiment with layouts, typography, and visual hierarchy to make the section engaging and memorable. Use animations or transitions sparingly to enhance interactivity without overwhelming the user.
+4. Ensure accessibility by using semantic HTML elements and providing sufficient color contrast, readable font sizes, and clear focus indicators for interactive elements.
+5. Be detailed and specific in content, avoiding generic statements. Use concrete examples and data points to illustrate achievements and skills.
+6. Long blocks are allowed, but prioritize quality and relevance over quantity.
+7. You can summarize multiple experiences into a single cohesive narrative if it improves clarity and engagement.
+8. Aim to be factual and avoid speculative or assumptive content. Only include information supported by the provided context.
 
 Return ONLY the HTML string. No markdown code fences (```html). No JSON wrapping.
+"""
+
+BUTTON_GENERATION_PROMPT = """
+You are generating suggested prompt buttons for an AI-powered interactive resume chatbot.
+
+CONTEXT:
+- Visitor Summary: {visitor_summary}
+- Recent Chat History: {chat_history}
+
+Generate 3 diverse, interesting prompts that the visitor might want to ask. These prompts should:
+1. Be specific and actionable
+2. Explore different aspects of the candidate's experience (technical skills, leadership, projects, etc.)
+3. Be relevant to the visitor's interests if known, or generally interesting if unknown
+4. Be phrased as natural questions or requests (e.g., "Tell me about your AI projects", "What leadership experience do you have?")
+
+Return ONLY a JSON array of objects with this structure:
+[
+  {{"label": "Short button text (2-4 words)", "prompt": "Full prompt text"}},
+  {{"label": "Short button text", "prompt": "Full prompt text"}},
+  {{"label": "Short button text", "prompt": "Full prompt text"}}
+]
+
+Examples:
+- {{"label": "AI Projects", "prompt": "Tell me about your experience with AI and machine learning projects"}}
+- {{"label": "Leadership", "prompt": "What leadership and team management experience do you have?"}}
+- {{"label": "Technical Stack", "prompt": "What technologies and frameworks are you most proficient in?"}}
+
+Return ONLY the JSON array. No markdown, no explanation.
 """

@@ -30,3 +30,14 @@ class GenerateBlockRequest(BaseModel):
 class GenerateBlockResponse(BaseModel):
     html: str
     block_summary: str
+
+class SuggestedButton(BaseModel):
+    label: str
+    prompt: str
+
+class GenerateButtonsRequest(BaseModel):
+    visitor_summary: Optional[str] = None
+    chat_history: List[Dict[str, str]] = []
+
+class GenerateButtonsResponse(BaseModel):
+    buttons: List[SuggestedButton]

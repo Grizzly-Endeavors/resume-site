@@ -14,7 +14,7 @@ CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Models
-CEREBRAS_MODEL = "qwen-3-32b" # Updated from llama3.1-8b
+CEREBRAS_MODEL = "qwen-3-235b-a22b-instruct-2507" # Updated from llama3.1-8b
 GEMINI_MODEL = "gemini-2.5-flash"
 EMBEDDING_MODEL = "models/text-embedding-004" 
 

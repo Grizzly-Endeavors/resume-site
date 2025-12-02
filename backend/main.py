@@ -11,8 +11,8 @@ from contextlib import asynccontextmanager
 from db import init_db, close_db_pool
 from llm import generate_text
 from rag import search_similar_experiences, format_rag_results
-from prompts import CHAT_SYSTEM_PROMPT, BLOCK_GENERATION_SYSTEM_PROMPT
-from models import ChatRequest, ChatResponse, GenerateBlockRequest, GenerateBlockResponse
+from prompts import CHAT_SYSTEM_PROMPT, BLOCK_GENERATION_SYSTEM_PROMPT, BUTTON_GENERATION_PROMPT
+from models import ChatRequest, ChatResponse, GenerateBlockRequest, GenerateBlockResponse, GenerateButtonsRequest, GenerateButtonsResponse, SuggestedButton
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -129,7 +129,7 @@ async def generate_block(request: GenerateBlockRequest):
             logger.info(f"  {i}. [{exp.get('similarity', 0):.4f}] {exp['title']} (type: {exp['metadata'].get('type', 'unknown')})")
 
         rag_results = await format_rag_results(experiences)
-        
+
         # 2. Prompt Construction
         formatted_prompt = BLOCK_GENERATION_SYSTEM_PROMPT.format(
             visitor_summary=request.visitor_summary,
@@ -138,21 +138,67 @@ async def generate_block(request: GenerateBlockRequest):
             action_type=request.action_type or "initial_load",
             action_value=request.action_value or "None"
         )
-        
+
         # 3. LLM Generation
         # The prompt asks for "ONLY the HTML".
         html_response = await generate_text("Generate the next block.", formatted_prompt)
-        
+
         # Clean up markdown code blocks if present
         clean_html = html_response.replace("```html", "").replace("```", "").strip()
-        
+
         # Summarize what was generated for the next context (simplified)
         # In a real app, we might ask the LLM to return a summary too, or parse it.
         # For now, we'll just use the title of the first experience or a generic string.
         block_summary = f"Displayed block based on: {query}"
-        
+
         return GenerateBlockResponse(html=clean_html, block_summary=block_summary)
-        
+
     except Exception as e:
         logger.error(f"Block generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/generate-buttons", response_model=GenerateButtonsResponse)
+async def generate_buttons(request: GenerateButtonsRequest):
+    try:
+        # Format chat history for the prompt
+        history_text = ""
+        for msg in request.chat_history[-6:]:  # Only use last 6 messages for context
+            role = "Visitor" if msg.get("role") == "user" else "Assistant"
+            history_text += f"{role}: {msg.get('content', '')}\n"
+
+        visitor_summary = request.visitor_summary or "Unknown visitor"
+
+        # Construct the prompt
+        formatted_prompt = BUTTON_GENERATION_PROMPT.format(
+            visitor_summary=visitor_summary,
+            chat_history=history_text if history_text else "No prior conversation"
+        )
+
+        # Generate buttons using LLM
+        response_text = await generate_text("", formatted_prompt)
+
+        # Clean up markdown code blocks if present
+        clean_response = response_text.replace("```json", "").replace("```", "").strip()
+
+        # Parse JSON response
+        buttons_data = json.loads(clean_response)
+
+        # Convert to SuggestedButton objects
+        buttons = [SuggestedButton(label=btn["label"], prompt=btn["prompt"]) for btn in buttons_data]
+
+        logger.info(f"Generated {len(buttons)} suggested buttons")
+
+        return GenerateButtonsResponse(buttons=buttons)
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse button generation response: {e}")
+        logger.error(f"Response was: {response_text}")
+        # Return default buttons as fallback
+        return GenerateButtonsResponse(buttons=[
+            SuggestedButton(label="Experience", prompt="Tell me about your professional experience"),
+            SuggestedButton(label="Skills", prompt="What are your key technical skills?"),
+            SuggestedButton(label="Projects", prompt="Show me some of your notable projects")
+        ])
+    except Exception as e:
+        logger.error(f"Button generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
