@@ -267,19 +267,29 @@ class GenerationHandler:
             rag_results=rag_results
         )
 
-        # Generate using small model (fast JSON generation)
-        response_text = await self.llm.llm_call(
-            prompt="Generate suggested buttons.",
-            system_prompt=formatted_prompt,
-            size=ModelSize.SMALL,
-            timeout=10
-        )
+        # Generate using small model (fast JSON generation) with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            response_text = await self.llm.llm_call(
+                prompt="Generate suggested buttons.",
+                system_prompt=formatted_prompt,
+                size=ModelSize.SMALL,
+                timeout=10
+            )
+            buttons = self._parse_button_response(response_text)
+            if buttons is not None:
+                return buttons
+            logger.warning(f"Button parsing failed on attempt {attempt + 1}, retrying")
 
-        # Parse JSON
-        buttons = self._parse_button_response(response_text)
-        return buttons
+        # If all retries failed, return fallback
+        logger.warning("All button parsing attempts failed, using fallback")
+        return [
+            SuggestedButton(label="Experience", prompt="Tell me about your professional experience"),
+            SuggestedButton(label="Skills", prompt="What are your key technical skills?"),
+            SuggestedButton(label="Projects", prompt="Show me some of your notable projects")
+        ]
 
-    def _parse_button_response(self, response_text: str) -> List[SuggestedButton]:
+    def _parse_button_response(self, response_text: str) -> Optional[List[SuggestedButton]]:
         """Parse button generation response into SuggestedButton objects."""
         clean_response = response_text.replace("```json", "").replace("```", "").strip()
 
@@ -291,13 +301,7 @@ class GenerationHandler:
             if match:
                 buttons_data = json.loads(match.group(0))
             else:
-                # Return fallback buttons
-                logger.warning("Failed to parse button response, using fallback")
-                return [
-                    SuggestedButton(label="Experience", prompt="Tell me about your professional experience"),
-                    SuggestedButton(label="Skills", prompt="What are your key technical skills?"),
-                    SuggestedButton(label="Projects", prompt="Show me some of your notable projects")
-                ]
+                return None
 
         return [SuggestedButton(label=btn["label"], prompt=btn["prompt"]) for btn in buttons_data]
 
