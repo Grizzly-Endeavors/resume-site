@@ -43,6 +43,14 @@ class SuggestedButton(BaseModel):
     label: str
     prompt: str
 
+class ButtonList(BaseModel):
+    """Wrapper for structured button generation output.
+
+    Used with output_structure() to ensure API-level schema compliance.
+    Most structured output APIs require a root object, not an array.
+    """
+    buttons: List[SuggestedButton]
+
 class GenerateButtonsRequest(BaseModel):
     visitor_summary: Optional[str] = None
     chat_history: List[Dict[str, str]] = []

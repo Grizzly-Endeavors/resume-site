@@ -3,7 +3,7 @@ import json
 import re
 from typing import List, Optional, Dict, Any
 
-from ai.llm import llm_handler, ModelSize
+from ai.llm import llm_handler, ModelSize, StructuredOutputError
 from rag import search_similar_experiences, format_rag_results
 from ai.prompts import (
     CHAT_SYSTEM_PROMPT,
@@ -12,7 +12,7 @@ from ai.prompts import (
     PROMPT_GENERATION_PROMPT,
     SUMMARY_GENERATION_PROMPT
 )
-from models import CompressedContext, SuggestedButton
+from models import CompressedContext, SuggestedButton, ButtonList
 
 logger = logging.getLogger(__name__)
 
@@ -267,43 +267,26 @@ class GenerationHandler:
             rag_results=rag_results
         )
 
-        # Generate using small model (fast JSON generation) with retry logic
-        max_retries = 3
-        for attempt in range(max_retries):
-            response_text = await self.llm.llm_call(
+        # Generate using structured output method
+        try:
+            button_list = await self.llm.output_structure(
                 prompt="Generate suggested buttons.",
                 system_prompt=formatted_prompt,
                 size=ModelSize.SMALL,
+                response_model=ButtonList,
                 timeout=10
             )
-            buttons = self._parse_button_response(response_text)
-            if buttons is not None:
-                return buttons
-            logger.warning(f"Button parsing failed on attempt {attempt + 1}, retrying")
+            logger.info(f"Successfully generated {len(button_list.buttons)} buttons via structured output")
+            return button_list.buttons
 
-        # If all retries failed, return fallback
-        logger.warning("All button parsing attempts failed, using fallback")
-        return [
-            SuggestedButton(label="Experience", prompt="Tell me about your professional experience"),
-            SuggestedButton(label="Skills", prompt="What are your key technical skills?"),
-            SuggestedButton(label="Projects", prompt="Show me some of your notable projects")
-        ]
-
-    def _parse_button_response(self, response_text: str) -> Optional[List[SuggestedButton]]:
-        """Parse button generation response into SuggestedButton objects."""
-        clean_response = response_text.replace("```json", "").replace("```", "").strip()
-
-        try:
-            buttons_data = json.loads(clean_response)
-        except json.JSONDecodeError:
-            # Try to find JSON in the text
-            match = re.search(r'\[.*\]', clean_response, re.DOTALL)
-            if match:
-                buttons_data = json.loads(match.group(0))
-            else:
-                return None
-
-        return [SuggestedButton(label=btn["label"], prompt=btn["prompt"]) for btn in buttons_data]
+        except StructuredOutputError as e:
+            # All retries and fallback failed - return static buttons
+            logger.warning(f"Button generation failed after all attempts: {e}. Using fallback.")
+            return [
+                SuggestedButton(label="Experience", prompt="Tell me about your professional experience"),
+                SuggestedButton(label="Skills", prompt="What are your key technical skills?"),
+                SuggestedButton(label="Projects", prompt="Show me some of your notable projects")
+            ]
 
 
 # Global generation handler instance

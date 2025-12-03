@@ -51,14 +51,16 @@ Generate 3 diverse, interesting prompts that:
 3. Are phrased as natural questions (e.g., "Tell me about your AI projects")
 4. CRITICAL: Ensure every suggestion can be answered using ONLY the information in RELEVANT CONTENT. Do not hallucinate capabilities or projects not listed there.
 
-Return ONLY a JSON array:
-[
-  {{"label": "Short label (2-4 words)", "prompt": "Full question text"}},
-  {{"label": "Short label", "prompt": "Full question text"}},
-  {{"label": "Short label", "prompt": "Full question text"}}
-]
+Return ONLY a JSON object with this structure:
+{{
+  "buttons": [
+    {{"label": "Short label (2-4 words)", "prompt": "Full question text"}},
+    {{"label": "Short label", "prompt": "Full question text"}},
+    {{"label": "Short label", "prompt": "Full question text"}}
+  ]
+}}
 
-Return ONLY the JSON array. No markdown, no explanation."""
+Return ONLY the JSON object. No markdown, no explanation."""
 
 PROMPT_GENERATION_PROMPT = """You are generating a comprehensive search and generation prompt for an AI-powered resume chatbot.
 
