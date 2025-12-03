@@ -61,8 +61,8 @@ class GenerateButtonsResponse(BaseModel):
 class GeneratedPrompt(BaseModel):
     """Structured output for prompt generation.
 
-    Contains separate RAG query and block generation instructions.
+    Contains block generation instructions and filtered experience titles.
     """
-    rag_query: str
     block_focus: str
     suggested_html_structure: str
+    selected_experience_titles: List[str]

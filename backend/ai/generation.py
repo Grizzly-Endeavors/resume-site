@@ -78,24 +78,29 @@ class GenerationHandler:
         self,
         visitor_summary: str,
         block_summaries: List[str],
-        user_input: str
+        user_input: str,
+        rag_results: str,
+        rag_experiences: List[Dict[str, Any]]
     ) -> GeneratedPrompt:
         """
-        Generate structured prompts for RAG retrieval and block generation.
+        Filter RAG results and generate block focus/structure guidance.
 
         Args:
             visitor_summary: Who the visitor is and what they're looking for
             block_summaries: List of previous block summaries
             user_input: Current user action (button or chat input)
+            rag_results: Formatted RAG results text
+            rag_experiences: List of experience dicts with 'title' field
 
         Returns:
-            GeneratedPrompt with rag_query, block_focus, and suggested_html_structure
+            GeneratedPrompt with block_focus, suggested_html_structure, and selected_experience_titles
         """
         block_summaries_text = "\n".join(f"- {summary}" for summary in block_summaries) if block_summaries else "No prior blocks"
         formatted_prompt = PROMPT_GENERATION_PROMPT.format(
             visitor_summary=visitor_summary,
             block_summaries=block_summaries_text,
-            user_input=user_input
+            user_input=user_input,
+            rag_results=rag_results
         )
 
         try:
@@ -106,17 +111,18 @@ class GenerationHandler:
                 response_model=GeneratedPrompt,
                 timeout=10
             )
-            logger.info(f"[PROMPT] Generated RAG query: '{result.rag_query}'")
             logger.info(f"[PROMPT] Block focus: '{result.block_focus}'")
             logger.info(f"[PROMPT] Suggested structure: '{result.suggested_html_structure}'")
+            logger.info(f"[PROMPT] Selected experiences: {result.selected_experience_titles}")
             return result
         except StructuredOutputError as e:
             logger.warning(f"Structured prompt generation failed: {e}, using fallback")
-            # Fallback: return user input as RAG query
+            # Fallback: select first 3 experience titles
+            fallback_titles = [exp['title'] for exp in rag_experiences[:3]]
             return GeneratedPrompt(
-                rag_query=user_input,
                 block_focus="Relevant content based on visitor interests",
-                suggested_html_structure="Clean, readable layout with semantic HTML"
+                suggested_html_structure="Clean, readable layout with semantic HTML",
+                selected_experience_titles=fallback_titles
             )
 
     async def generate_block(
@@ -132,31 +138,39 @@ class GenerationHandler:
         Returns:
             Dict with 'html', 'block_summary', and 'experience_ids'
         """
-        # 2. Generate Prompt
+        # 1. Perform RAG search with user input query
         user_input = action_value or visitor_summary
-        block_summaries = context.block_summaries if context else []
-        generated_prompt = await self.generate_prompt(
-            visitor_summary=visitor_summary,
-            block_summaries=block_summaries,
-            user_input=user_input
-        )
-
-        # 3. RAG with Diversity Scoring
         shown_counts = context.shown_experience_counts if context else {}
         experiences = await search_similar_experiences(
-            query=generated_prompt.rag_query,
+            query=user_input,
             limit=5,
             shown_counts=shown_counts
         )
 
-        experience_ids = [exp['id'] for exp in experiences]
         rag_results = await format_rag_results(experiences)
 
+        # 2. Generate Prompt (filters RAG results and provides focus/structure)
+        block_summaries = context.block_summaries if context else []
+        generated_prompt = await self.generate_prompt(
+            visitor_summary=visitor_summary,
+            block_summaries=block_summaries,
+            user_input=user_input,
+            rag_results=rag_results,
+            rag_experiences=experiences
+        )
+
+        # 3. Filter experiences based on selected titles and format for block generation
+        selected_experiences = [exp for exp in experiences if exp['title'] in generated_prompt.selected_experience_titles]
+        selected_rag_results = await format_rag_results(selected_experiences)
+        experience_ids = [exp['id'] for exp in selected_experiences]
+
+        logger.info(f"[BLOCK] Selected {len(experience_ids)} experiences for block generation")
+
         # 4. Format System Prompt with focus and structure guidance
-        prompt_text = f"Focus on: {generated_prompt.block_focus}\n\nSuggested HTML structure: {generated_prompt.suggested_html_structure}"
         formatted_prompt = BLOCK_GENERATION_SYSTEM_PROMPT.format(
-            generated_prompt=prompt_text,
-            rag_results=rag_results
+            block_focus=generated_prompt.block_focus,
+            suggested_html_structure=generated_prompt.suggested_html_structure,
+            rag_results=selected_rag_results
         )
 
         # 5. Generate Block (Large model for quality)
@@ -222,39 +236,30 @@ class GenerationHandler:
         context: Optional[CompressedContext]
     ) -> List[SuggestedButton]:
         """
-        Generate suggested prompt buttons.
+        Generate suggested prompt buttons based on RAG items and visitor summary.
 
         Returns:
             List of SuggestedButton objects
         """
-        # Format chat history
-        history_text = ""
-        for msg in chat_history[-6:]:
-            role = "Visitor" if msg.get("role") == "user" else "Assistant"
-            history_text += f"{role}: {msg.get('content', '')}\n"
+        # Find the most recent user message for RAG search
+        search_query = visitor_summary  # fallback
+        for msg in reversed(chat_history):
+            if msg.get("role") == "user":
+                search_query = msg.get("content", "")
+                break
 
-        # Generate Prompt
-        user_input = history_text if history_text else "General professional experience"
-        block_summaries = context.block_summaries if context else []
-        generated_prompt = await self.generate_prompt(
-            visitor_summary=visitor_summary,
-            block_summaries=block_summaries,
-            user_input=user_input
-        )
-
-        # RAG Search
+        # RAG Search - get relevant experiences
         shown_counts = context.shown_experience_counts if context else {}
         experiences = await search_similar_experiences(
-            query=generated_prompt.rag_query,
+            query=search_query,
             limit=5,
             shown_counts=shown_counts
         )
         rag_results = await format_rag_results(experiences)
 
-        # Construct prompt with focus guidance
-        prompt_text = f"Focus on: {generated_prompt.block_focus}"
+        # Construct prompt with visitor summary
         formatted_prompt = BUTTON_GENERATION_PROMPT.format(
-            generated_prompt=prompt_text,
+            visitor_summary=visitor_summary,
             rag_results=rag_results
         )
 
