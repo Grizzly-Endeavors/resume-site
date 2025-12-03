@@ -12,7 +12,7 @@ from ai.prompts import (
     PROMPT_GENERATION_PROMPT,
     SUMMARY_GENERATION_PROMPT
 )
-from models import CompressedContext, SuggestedButton, ButtonList
+from models import CompressedContext, SuggestedButton, ButtonList, GeneratedPrompt
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +79,9 @@ class GenerationHandler:
         visitor_summary: str,
         block_summaries: List[str],
         user_input: str
-    ) -> str:
+    ) -> GeneratedPrompt:
         """
-        Generate a comprehensive prompt for RAG retrieval and content generation.
+        Generate structured prompts for RAG retrieval and block generation.
 
         Args:
             visitor_summary: Who the visitor is and what they're looking for
@@ -89,7 +89,7 @@ class GenerationHandler:
             user_input: Current user action (button or chat input)
 
         Returns:
-            Generated prompt string
+            GeneratedPrompt with rag_query, block_focus, and suggested_html_structure
         """
         block_summaries_text = "\n".join(f"- {summary}" for summary in block_summaries) if block_summaries else "No prior blocks"
         formatted_prompt = PROMPT_GENERATION_PROMPT.format(
@@ -99,18 +99,25 @@ class GenerationHandler:
         )
 
         try:
-            generated = await self.llm.llm_call(
+            result = await self.llm.output_structure(
                 prompt="Generate the prompt.",
                 system_prompt=formatted_prompt,
                 size=ModelSize.MEDIUM,
-                timeout=5
+                response_model=GeneratedPrompt,
+                timeout=10
             )
-            generated = generated.strip()
-            logger.info(f"[PROMPT] Generated: '{generated}'")
-            return generated
-        except Exception as e:
-            logger.warning(f"Prompt generation failed: {e}, using fallback")
-            return user_input  # Fallback to original input
+            logger.info(f"[PROMPT] Generated RAG query: '{result.rag_query}'")
+            logger.info(f"[PROMPT] Block focus: '{result.block_focus}'")
+            logger.info(f"[PROMPT] Suggested structure: '{result.suggested_html_structure}'")
+            return result
+        except StructuredOutputError as e:
+            logger.warning(f"Structured prompt generation failed: {e}, using fallback")
+            # Fallback: return user input as RAG query
+            return GeneratedPrompt(
+                rag_query=user_input,
+                block_focus="Relevant content based on visitor interests",
+                suggested_html_structure="Clean, readable layout with semantic HTML"
+            )
 
     async def generate_block(
         self,
@@ -137,7 +144,7 @@ class GenerationHandler:
         # 3. RAG with Diversity Scoring
         shown_counts = context.shown_experience_counts if context else {}
         experiences = await search_similar_experiences(
-            query=generated_prompt,
+            query=generated_prompt.rag_query,
             limit=5,
             shown_counts=shown_counts
         )
@@ -145,9 +152,10 @@ class GenerationHandler:
         experience_ids = [exp['id'] for exp in experiences]
         rag_results = await format_rag_results(experiences)
 
-        # 4. Format System Prompt
+        # 4. Format System Prompt with focus and structure guidance
+        prompt_text = f"Focus on: {generated_prompt.block_focus}\n\nSuggested HTML structure: {generated_prompt.suggested_html_structure}"
         formatted_prompt = BLOCK_GENERATION_SYSTEM_PROMPT.format(
-            generated_prompt=generated_prompt,
+            generated_prompt=prompt_text,
             rag_results=rag_results
         )
 
@@ -237,15 +245,16 @@ class GenerationHandler:
         # RAG Search
         shown_counts = context.shown_experience_counts if context else {}
         experiences = await search_similar_experiences(
-            query=generated_prompt,
+            query=generated_prompt.rag_query,
             limit=5,
             shown_counts=shown_counts
         )
         rag_results = await format_rag_results(experiences)
 
-        # Construct prompt
+        # Construct prompt with focus guidance
+        prompt_text = f"Focus on: {generated_prompt.block_focus}"
         formatted_prompt = BUTTON_GENERATION_PROMPT.format(
-            generated_prompt=generated_prompt,
+            generated_prompt=prompt_text,
             rag_results=rag_results
         )
 

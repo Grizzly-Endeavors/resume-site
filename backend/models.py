@@ -57,3 +57,12 @@ class GenerateButtonsRequest(BaseModel):
 
 class GenerateButtonsResponse(BaseModel):
     buttons: List[SuggestedButton]
+
+class GeneratedPrompt(BaseModel):
+    """Structured output for prompt generation.
+
+    Contains separate RAG query and block generation instructions.
+    """
+    rag_query: str
+    block_focus: str
+    suggested_html_structure: str

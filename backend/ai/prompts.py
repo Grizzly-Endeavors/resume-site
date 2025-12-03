@@ -20,21 +20,23 @@ GENERATED PROMPT: {generated_prompt}
 RELEVANT EXPERIENCES:
 {rag_results}
 
-Generate a complete HTML block that:
-1. Responds directly to the generated prompt using the relevant experiences
-2. Uses clean, readable dark-mode styling (Use inline style="..." attributes ONLY. Do NOT use <style> tags as they conflict with other blocks. Use CSS variables like var(--primary-color) for theming)
-3. Be creative and dynamic with layouts, typography, and visual hierarchy
-4. Ensure accessibility (semantic HTML, color contrast, readable fonts)
-5. Be detailed and specific with concrete examples and data points
-6. Long blocks are allowed when they add value
-7. Summarize multiple experiences into cohesive narratives when appropriate
-8. Be factual and avoid speculation
+Generation Guidelines:
+1. Respond directly to the generated prompt using the relevant experiences
+2. Be creative and dynamic with layouts, typography, and visual hierarchy
+3. Ensure accessibility (semantic HTML, color contrast, readable fonts)
+4. Long blocks are allowed when they add value
+5. Summarize multiple experiences into cohesive narratives when appropriate
+6. Be factual and avoid speculation
+
+HTML Instructions:
+1. Use clean, readable dark-mode styling (Use inline style="..." attributes ONLY. Do NOT use <style> tags as they conflict with other blocks. Use CSS variables like var(--primary-color) for theming)
+2. Optionally use <script> tags for enhanced styling and interactivity if needed
+3. Ensure the content is self-contained and does not rely on external CSS or JS files/libraries
 
 Return ONLY the HTML content - no markdown code fences, no explanations, no wrapper tags.
 
 IMPORTANT:
 - Do NOT use markdown code fences (```html)
-- Do not use span tags for styling
 - Ensure all information is accurate and based on the provided context
 - Return pure HTML that can be inserted directly into the page"""
 
@@ -49,7 +51,8 @@ Generate 3 diverse, interesting prompts that:
 1. Are specific and actionable
 2. Build on or explore different angles from the generated prompt
 3. Are phrased as natural questions (e.g., "Tell me about your AI projects")
-4. CRITICAL: Ensure every suggestion can be answered using ONLY the information in RELEVANT CONTENT. Do not hallucinate capabilities or projects not listed there.
+4. One should focus on a single specific project or experience mentioned in RELEVANT CONTENT.
+5. CRITICAL: Ensure every suggestion can be answered using ONLY the information in RELEVANT CONTENT. Do not hallucinate capabilities or projects not listed there.
 
 Return ONLY a JSON object with this structure:
 {{
@@ -62,7 +65,10 @@ Return ONLY a JSON object with this structure:
 
 Return ONLY the JSON object. No markdown, no explanation."""
 
-PROMPT_GENERATION_PROMPT = """You are generating a comprehensive search and generation prompt for an AI-powered resume chatbot.
+PROMPT_GENERATION_PROMPT = """You are generating prompts for an AI-powered resume chatbot. Produce structured output with:
+1. RAG query - optimized for semantic search over resume experiences
+2. Block focus - what the HTML block should emphasize
+3. Suggested HTML structure - high-level non-prescriptive guidance on layout
 
 VISITOR SUMMARY: {visitor_summary}
 
@@ -70,25 +76,23 @@ PREVIOUS BLOCK SUMMARIES: {block_summaries}
 
 USER INPUT: {user_input}
 
-Generate a detailed, specific prompt that will be used for:
-1. RAG retrieval (finding relevant resume experiences)
-2. Content generation (creating HTML blocks or suggested buttons)
+Generate outputs that:
+- RAG query: Synthesize visitor interests with current request, include semantic variations, avoid repeating previous blocks, be 1-2 sentences
+- Block focus: Key themes/angles to emphasize in content (2-3 bullet points)
+- Suggested HTML structure: Propose general layout approach/styling (e.g., "timeline with cards", "grid with clickable elements", "narrative with metrics") without being prescriptive about exact implementation. DO NOT suggest using code snippets.
+Guidelines:
+- Introduce variety in focus and structure compared to previous blocks
+- If user input is vague, infer specific interests from visitor summary
+- If the user asks about a specific project/experience, ensure the block focus aligns with that.
 
-Your prompt should:
-- Synthesize the visitor's interests with the current request
-- Include semantic variations and related terms for better search
-- Avoid repeating content from previous blocks
-- Be specific and actionable (e.g., "AI/ML projects with production impact" instead of just "AI")
-- Be 2-3 sentences maximum
+Return ONLY a JSON object with this structure:
+{{
+  "rag_query": "Optimized search query for RAG retrieval",
+  "block_focus": "Key themes to emphasize in the block content",
+  "suggested_html_structure": "General layout approach suggestion"
+}}
 
-Return ONLY the generated prompt. No explanations or additional text.
-
-Examples:
-Input: Visitor="Software recruiter looking for ML experience", Context="Covered backend infrastructure", User="Tell me about AI projects"
-Output: AI and machine learning projects with production deployment experience, including model training, inference optimization, and MLOps. Focus on hands-on implementation rather than infrastructure work.
-
-Input: Visitor="Engineering manager interested in leadership", Context="", User="What's your experience?"
-Output: Technical leadership experience including team management, mentoring, project planning, and cross-functional collaboration. Highlight impact on team growth and engineering culture."""
+Return ONLY the JSON object. No markdown, no explanation."""
 
 SUMMARY_GENERATION_PROMPT = """You are summarizing what an HTML block on a resume website covered.
 
@@ -97,15 +101,11 @@ HTML CONTENT:
 
 VISITOR CONTEXT: {visitor_summary}
 
-Generate ONE concise sentence (10-15 words max) describing what experiences or skills were highlighted in this block.
-
-The summary should be semantic and specific, mentioning:
-- Key topics covered (e.g., "AI/ML projects", "backend infrastructure", "leadership")
-- Company or context if relevant
+Generate a concise summary describing what experiences and skills were highlighted in this block, what the focus was, and what the overall HTML structure was (e.g., sections, layout, interactive elements).
 
 Examples:
-- "Explored AI/ML projects and technical leadership at Google"
-- "Detailed backend infrastructure work and distributed systems experience"
-- "Highlighted early-stage startup experience and product management"
+- "Covered AI/ML projects with a focus on technical leadership and impact at Google, structured as a timeline with interactive project cards."
+- "Outlined backend infrastructure expertise, emphasizing distributed systems and scalability, presented in a grid layout with code snippets and diagrams."
+- "Showcased early-stage startup involvement, highlighting product management and rapid iteration, organized into collapsible sections with key metrics."
 
-Return ONLY the summary sentence. No additional text or formatting."""
+Return ONLY the summary. No additional text or formatting."""

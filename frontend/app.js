@@ -126,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function generateBlock(actionType, actionValue, blockId = null) {
+        // Show loading indicator with a smooth transition
         loadingIndicator.classList.remove('hidden');
 
         try {
@@ -172,8 +173,29 @@ document.addEventListener('DOMContentLoaded', () => {
             wrapper.className = 'block-wrapper';
             wrapper.id = newBlockId;
 
-            // Set wrapper content
-            wrapper.innerHTML = data.html;
+            // Extract scripts from HTML before injection
+            // (scripts in innerHTML don't execute, so we need to extract and append them separately)
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = data.html;
+            const scripts = Array.from(tempDiv.querySelectorAll('script'));
+
+            // Remove script tags from HTML to inject
+            const htmlWithoutScripts = data.html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+
+            // Set wrapper content (without scripts)
+            wrapper.innerHTML = htmlWithoutScripts;
+
+            // Execute extracted scripts
+            // Scripts appended to DOM after elements are in place will execute properly
+            scripts.forEach(script => {
+                const newScript = document.createElement('script');
+                if (script.src) {
+                    newScript.src = script.src;
+                } else {
+                    newScript.textContent = script.textContent;
+                }
+                wrapper.appendChild(newScript);
+            });
 
             // Add regenerate button
             const regenerateBtn = document.createElement('button');
@@ -195,14 +217,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 contentStream.appendChild(wrapper);
             }
 
+            // Scroll smoothly to the new block
             wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+            // Load suggested buttons while keeping loading indicator briefly visible for consistency
             await loadSuggestedButtons();
 
         } catch (err) {
             console.error(err);
             alert("Failed to load content.");
         } finally {
+            // Hide loading indicator with a brief delay for smoother UX
             loadingIndicator.classList.add('hidden');
         }
     }
