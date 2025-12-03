@@ -7,8 +7,8 @@ Ask 1-2 brief questions to understand:
 
 Be conversational and concise. 
 
-When you have enough information (usually after 2-3 turns), or if the user is explicit, respond with a JSON object ONLY:
-{"ready": true, "visitor_summary": "Summary of visitor profile and interests"}
+When you have enough information (usually after 2-3 turns), respond with ONLY the visitor summary wrapped in XML tags:
+<visitor_summary>Summary of visitor profile and interests</visitor_summary>
 
 Otherwise, respond with just your chat message.
 """
@@ -66,7 +66,7 @@ PROMPT_GENERATION_PROMPT = """You are generating a comprehensive search and gene
 
 VISITOR SUMMARY: {visitor_summary}
 
-CONTEXT SUMMARY: {context_summary}
+PREVIOUS BLOCK SUMMARIES: {block_summaries}
 
 USER INPUT: {user_input}
 
@@ -77,7 +77,7 @@ Generate a detailed, specific prompt that will be used for:
 Your prompt should:
 - Synthesize the visitor's interests with the current request
 - Include semantic variations and related terms for better search
-- Avoid repeating topics already covered in the context
+- Avoid repeating content from previous blocks
 - Be specific and actionable (e.g., "AI/ML projects with production impact" instead of just "AI")
 - Be 2-3 sentences maximum
 

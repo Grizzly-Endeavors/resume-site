@@ -8,27 +8,30 @@ logger = logging.getLogger(__name__)
 
 def apply_diversity_scoring(
     results: List[Dict[str, Any]],
-    shown_ids: List[str],
-    penalty: float = 0.4
+    shown_counts: Dict[str, int],
+    penalty_per_showing: float = 0.4,
+    max_penalty: float = 0.9
 ) -> List[Dict[str, Any]]:
     """
-    Apply diversity penalty to previously shown experiences.
+    Apply cumulative diversity penalty to previously shown experiences.
 
     Args:
         results: RAG search results with 'similarity' scores
-        shown_ids: List of experience IDs already shown
-        penalty: Reduction factor (0.4 = 40% penalty)
+        shown_counts: Dict of experience IDs to show counts
+        penalty_per_showing: Penalty factor per showing (0.4 = 40% per showing)
+        max_penalty: Maximum penalty cap (0.9 = 90% max reduction)
 
     Returns:
         Re-ranked results
     """
-    shown_set = set(shown_ids)
-
     for result in results:
-        if result['id'] in shown_set:
+        exp_id = result['id']
+        if exp_id in shown_counts:
+            count = shown_counts[exp_id]
+            penalty = min(penalty_per_showing * count, max_penalty)
             original_score = result['similarity']
             result['similarity'] *= (1 - penalty)
-            logger.info(f"[DIVERSITY] Penalized '{result['title']}': {original_score:.3f} -> {result['similarity']:.3f}")
+            logger.info(f"[DIVERSITY] Penalized '{result['title']}' (shown {count}x): {original_score:.3f} -> {result['similarity']:.3f}")
 
     # Re-sort by adjusted similarity
     results.sort(key=lambda x: x['similarity'], reverse=True)
@@ -37,12 +40,13 @@ def apply_diversity_scoring(
 async def search_similar_experiences(
     query: str,
     limit: int = 5,
-    shown_ids: Optional[List[str]] = None
+    shown_counts: Optional[Dict[str, int]] = None
 ) -> List[Dict[str, Any]]:
     """Search with optional diversity scoring"""
     pool = await get_db_pool()
 
-    logger.info(f"[RAG Search] Query: '{query}', Shown IDs: {len(shown_ids) if shown_ids else 0}")
+    shown_count = sum(shown_counts.values()) if shown_counts else 0
+    logger.info(f"[RAG Search] Query: '{query}', Shown counts: {shown_count}")
     query_embedding = await llm_handler.generate_embedding(query, task_type="retrieval_query")
 
     # Format embedding for pgvector
@@ -50,7 +54,7 @@ async def search_similar_experiences(
 
     async with pool.acquire() as conn:
         # Fetch more results than needed for better diversity (fetch 2x limit)
-        fetch_limit = limit * 2 if shown_ids else limit
+        fetch_limit = limit * 2 if shown_counts else limit
 
         rows = await conn.fetch("""
             SELECT id, title, content, skills, metadata, 
@@ -71,9 +75,9 @@ async def search_similar_experiences(
                 "similarity": row["similarity"]
             })
             
-        # Apply diversity scoring if shown_ids provided
-        if shown_ids:
-            results = apply_diversity_scoring(results, shown_ids)
+        # Apply diversity scoring if shown_counts provided
+        if shown_counts:
+            results = apply_diversity_scoring(results, shown_counts)
 
         # Return requested limit after re-ranking
         return results[:limit]

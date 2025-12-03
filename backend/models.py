@@ -20,9 +20,8 @@ class ChatResponse(BaseModel):
     message: Optional[str] = None
 
 class CompressedContext(BaseModel):
-    recent_block_summary: Optional[str] = None
-    shown_experience_ids: List[str] = []
-    topics_covered: List[str] = []
+    block_summaries: List[str] = []
+    shown_experience_counts: Dict[str, int] = {}
 
 class GenerateBlockRequest(BaseModel):
     visitor_summary: str

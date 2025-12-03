@@ -18,9 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Context Tracker
     let contextTracker = {
-        recentBlockSummary: null,
-        shownExperienceIds: new Set(),
-        topicsCovered: new Set()
+        blockSummaries: [],
+        shownExperienceCounts: {}
     };
 
     // --- Chat Logic ---
@@ -132,9 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Build context object
             const context = {
-                recent_block_summary: contextTracker.recentBlockSummary,
-                shown_experience_ids: Array.from(contextTracker.shownExperienceIds),
-                topics_covered: Array.from(contextTracker.topicsCovered)
+                block_summaries: contextTracker.blockSummaries,
+                shown_experience_counts: contextTracker.shownExperienceCounts
             };
 
             const res = await fetch('/api/generate-block', {
@@ -151,17 +149,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             // Update context tracker
-            contextTracker.recentBlockSummary = data.block_summary;
+            contextTracker.blockSummaries.push(data.block_summary);
 
             if (data.experience_ids) {
                 data.experience_ids.forEach(id => {
-                    contextTracker.shownExperienceIds.add(id);
+                    contextTracker.shownExperienceCounts[id] = (contextTracker.shownExperienceCounts[id] || 0) + 1;
                 });
-            }
-            
-            const topic = extractTopicFromSummary(data.block_summary);
-            if (topic) {
-                contextTracker.topicsCovered.add(topic);
             }
 
             // Generate unique ID for this block
@@ -254,9 +247,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Build context object
             const context = {
-                recent_block_summary: contextTracker.recentBlockSummary,
-                shown_experience_ids: Array.from(contextTracker.shownExperienceIds),
-                topics_covered: Array.from(contextTracker.topicsCovered)
+                block_summaries: contextTracker.blockSummaries,
+                shown_experience_counts: contextTracker.shownExperienceCounts
             };
 
             const res = await fetch('/api/generate-buttons', {

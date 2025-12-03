@@ -47,9 +47,9 @@ class GenerationHandler:
         # Build system prompt with turn-based hints
         system_instruction = CHAT_SYSTEM_PROMPT
         if user_turns >= 5:
-            system_instruction += "\n\nCRITICAL: You have reached the maximum conversation turns. You MUST now respond with the JSON ready signal. Summarize what you know so far."
+            system_instruction += "\n\nCRITICAL: You have reached the maximum conversation turns. You MUST now respond with the visitor summary in XML tags. Summarize what you know so far."
         elif user_turns >= 2:
-            system_instruction += "\n\nNote: You have gathered enough information. Please wrap up the conversation and provide the JSON ready signal."
+            system_instruction += "\n\nNote: You have gathered enough information. Please wrap up the conversation and provide the visitor summary in XML tags."
 
         full_prompt = f"{history_text}\nAssistant:"
 
@@ -61,27 +61,23 @@ class GenerationHandler:
             timeout=30
         )
 
-        # Parse response
-        try:
-            if "{" in response_text and "}" in response_text:
-                start = response_text.find("{")
-                end = response_text.rfind("}") + 1
-                json_str = response_text[start:end]
-                data = json.loads(json_str)
-                return {
-                    "ready": True,
-                    "visitor_summary": data.get("visitor_summary"),
-                    "message": None
-                }
-            else:
-                return {"ready": False, "message": response_text}
-        except json.JSONDecodeError:
+        # Parse response for XML tags
+        import re
+        match = re.search(r'<visitor_summary>(.*?)</visitor_summary>', response_text, re.DOTALL)
+        if match:
+            visitor_summary = match.group(1).strip()
+            return {
+                "ready": True,
+                "visitor_summary": visitor_summary,
+                "message": None
+            }
+        else:
             return {"ready": False, "message": response_text}
 
     async def generate_prompt(
         self,
         visitor_summary: str,
-        context_summary: str,
+        block_summaries: List[str],
         user_input: str
     ) -> str:
         """
@@ -89,15 +85,16 @@ class GenerationHandler:
 
         Args:
             visitor_summary: Who the visitor is and what they're looking for
-            context_summary: What has been covered so far
+            block_summaries: List of previous block summaries
             user_input: Current user action (button or chat input)
 
         Returns:
             Generated prompt string
         """
+        block_summaries_text = "\n".join(f"- {summary}" for summary in block_summaries) if block_summaries else "No prior blocks"
         formatted_prompt = PROMPT_GENERATION_PROMPT.format(
             visitor_summary=visitor_summary,
-            context_summary=context_summary if context_summary else "No prior context",
+            block_summaries=block_summaries_text,
             user_input=user_input
         )
 
@@ -128,28 +125,21 @@ class GenerationHandler:
         Returns:
             Dict with 'html', 'block_summary', and 'experience_ids'
         """
-        # 1. Build Context Summary
-        context_summary = ""
-        if context:
-            if context.recent_block_summary:
-                context_summary += f"Most Recent Block: {context.recent_block_summary}\n"
-            if context.topics_covered:
-                context_summary += f"Topics Already Covered: {', '.join(context.topics_covered)}\n"
-
         # 2. Generate Prompt
         user_input = action_value or visitor_summary
+        block_summaries = context.block_summaries if context else []
         generated_prompt = await self.generate_prompt(
             visitor_summary=visitor_summary,
-            context_summary=context_summary,
+            block_summaries=block_summaries,
             user_input=user_input
         )
 
         # 3. RAG with Diversity Scoring
-        shown_ids = context.shown_experience_ids if context else []
+        shown_counts = context.shown_experience_counts if context else {}
         experiences = await search_similar_experiences(
             query=generated_prompt,
             limit=5,
-            shown_ids=shown_ids
+            shown_counts=shown_counts
         )
 
         experience_ids = [exp['id'] for exp in experiences]
@@ -235,29 +225,21 @@ class GenerationHandler:
             role = "Visitor" if msg.get("role") == "user" else "Assistant"
             history_text += f"{role}: {msg.get('content', '')}\n"
 
-        # Build Context Summary
-        context_summary = ""
-        shown_ids = []
-        if context:
-            if context.recent_block_summary:
-                context_summary += f"Most Recent Block: {context.recent_block_summary}\n"
-            if context.topics_covered:
-                context_summary += f"Topics Already Covered: {', '.join(context.topics_covered)}\n"
-            shown_ids = context.shown_experience_ids
-
         # Generate Prompt
         user_input = history_text if history_text else "General professional experience"
+        block_summaries = context.block_summaries if context else []
         generated_prompt = await self.generate_prompt(
             visitor_summary=visitor_summary,
-            context_summary=context_summary,
+            block_summaries=block_summaries,
             user_input=user_input
         )
 
         # RAG Search
+        shown_counts = context.shown_experience_counts if context else {}
         experiences = await search_similar_experiences(
             query=generated_prompt,
             limit=5,
-            shown_ids=shown_ids
+            shown_counts=shown_counts
         )
         rag_results = await format_rag_results(experiences)
 

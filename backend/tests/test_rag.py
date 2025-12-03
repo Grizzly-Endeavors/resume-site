@@ -10,10 +10,10 @@ async def test_apply_diversity_scoring():
         {"id": "B", "title": "B", "similarity": 0.8},
         {"id": "C", "title": "C", "similarity": 0.7}
     ]
-    shown_ids = ["A"]
+    shown_counts = {"A": 1}
     
     # Apply penalty
-    new_results = apply_diversity_scoring(results, shown_ids, penalty=0.5)
+    new_results = apply_diversity_scoring(results, shown_counts, penalty_per_showing=0.5)
     
     # A should be penalized: 0.9 * (1 - 0.5) = 0.45
     # B should be unchanged: 0.8
@@ -43,7 +43,7 @@ async def test_search_similar_experiences():
 
     # Mock dependencies
     with patch("rag.get_db_pool", new_callable=AsyncMock) as mock_get_pool, \
-         patch("rag.generate_embedding", new_callable=AsyncMock) as mock_gen_embedding:
+         patch("ai.llm.llm_handler.generate_embedding", new_callable=AsyncMock) as mock_gen_embedding:
         
         mock_gen_embedding.return_value = mock_embedding
         
@@ -77,7 +77,7 @@ async def test_search_similar_experiences_with_diversity():
     ]
 
     with patch("rag.get_db_pool", new_callable=AsyncMock) as mock_get_pool, \
-         patch("rag.generate_embedding", new_callable=AsyncMock) as mock_gen_embedding:
+         patch("ai.llm.llm_handler.generate_embedding", new_callable=AsyncMock) as mock_gen_embedding:
         
         mock_gen_embedding.return_value = mock_embedding
         mock_pool = MagicMock()
@@ -92,13 +92,13 @@ async def test_search_similar_experiences_with_diversity():
         assert results[0]["id"] == "1"
         assert results[0]["similarity"] == 0.95
 
-        # 2. Test with shown_ids
-        # If "1" is shown, it should be penalized.
-        # "1" similarity becomes 0.95 * 0.7 = 0.665
+        # 2. Test with shown_counts
+        # If "1" is shown once, it should be penalized.
+        # "1" similarity becomes 0.95 * (1 - 0.4) = 0.57 (default penalty_per_showing=0.4)
         # "2" similarity stays 0.90
         # So "2" should be first now.
         
-        results_div = await search_similar_experiences(query, limit=2, shown_ids=["1"])
+        results_div = await search_similar_experiences(query, limit=2, shown_counts={"1": 1})
         
         assert results_div[0]["id"] == "2"
         assert results_div[1]["id"] == "1"
