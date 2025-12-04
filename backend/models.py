@@ -57,12 +57,3 @@ class GenerateButtonsRequest(BaseModel):
 
 class GenerateButtonsResponse(BaseModel):
     buttons: List[SuggestedButton]
-
-class GeneratedPrompt(BaseModel):
-    """Structured output for prompt generation.
-
-    Contains block generation instructions and filtered experience titles.
-    """
-    block_focus: str
-    suggested_html_structure: str
-    selected_experience_titles: List[str]

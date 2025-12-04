@@ -9,10 +9,9 @@ from ai.prompts import (
     CHAT_SYSTEM_PROMPT,
     BLOCK_GENERATION_SYSTEM_PROMPT,
     BUTTON_GENERATION_PROMPT,
-    PROMPT_GENERATION_PROMPT,
     SUMMARY_GENERATION_PROMPT
 )
-from models import CompressedContext, SuggestedButton, ButtonList, GeneratedPrompt
+from models import CompressedContext, SuggestedButton, ButtonList
 
 logger = logging.getLogger(__name__)
 
@@ -74,57 +73,6 @@ class GenerationHandler:
         else:
             return {"ready": False, "message": response_text}
 
-    async def generate_prompt(
-        self,
-        visitor_summary: str,
-        block_summaries: List[str],
-        user_input: str,
-        rag_results: str,
-        rag_experiences: List[Dict[str, Any]]
-    ) -> GeneratedPrompt:
-        """
-        Filter RAG results and generate block focus/structure guidance.
-
-        Args:
-            visitor_summary: Who the visitor is and what they're looking for
-            block_summaries: List of previous block summaries
-            user_input: Current user action (button or chat input)
-            rag_results: Formatted RAG results text
-            rag_experiences: List of experience dicts with 'title' field
-
-        Returns:
-            GeneratedPrompt with block_focus, suggested_html_structure, and selected_experience_titles
-        """
-        block_summaries_text = "\n".join(f"- {summary}" for summary in block_summaries) if block_summaries else "No prior blocks"
-        formatted_prompt = PROMPT_GENERATION_PROMPT.format(
-            visitor_summary=visitor_summary,
-            block_summaries=block_summaries_text,
-            user_input=user_input,
-            rag_results=rag_results
-        )
-
-        try:
-            result = await self.llm.output_structure(
-                prompt="Generate the prompt.",
-                system_prompt=formatted_prompt,
-                size=ModelSize.MEDIUM,
-                response_model=GeneratedPrompt,
-                timeout=10
-            )
-            logger.info(f"[PROMPT] Block focus: '{result.block_focus}'")
-            logger.info(f"[PROMPT] Suggested structure: '{result.suggested_html_structure}'")
-            logger.info(f"[PROMPT] Selected experiences: {result.selected_experience_titles}")
-            return result
-        except StructuredOutputError as e:
-            logger.warning(f"Structured prompt generation failed: {e}, using fallback")
-            # Fallback: select first 3 experience titles
-            fallback_titles = [exp['title'] for exp in rag_experiences[:3]]
-            return GeneratedPrompt(
-                block_focus="Relevant content based on visitor interests",
-                suggested_html_structure="Clean, readable layout with semantic HTML",
-                selected_experience_titles=fallback_titles
-            )
-
     async def generate_block(
         self,
         visitor_summary: str,
@@ -149,28 +97,20 @@ class GenerationHandler:
 
         rag_results = await format_rag_results(experiences)
 
-        # 2. Generate Prompt (filters RAG results and provides focus/structure)
-        block_summaries = context.block_summaries if context else []
-        generated_prompt = await self.generate_prompt(
-            visitor_summary=visitor_summary,
-            block_summaries=block_summaries,
-            user_input=user_input,
-            rag_results=rag_results,
-            rag_experiences=experiences
-        )
-
-        # 3. Filter experiences based on selected titles and format for block generation
-        selected_experiences = [exp for exp in experiences if exp['title'] in generated_prompt.selected_experience_titles]
-        selected_rag_results = await format_rag_results(selected_experiences)
+        # 2. Use all retrieved experiences for block generation
+        selected_experiences = experiences
         experience_ids = [exp['id'] for exp in selected_experiences]
 
-        logger.info(f"[BLOCK] Selected {len(experience_ids)} experiences for block generation")
+        logger.info(f"[BLOCK] Using {len(experience_ids)} experiences for block generation")
 
-        # 4. Format System Prompt with focus and structure guidance
+        # 3. Format System Prompt with visitor context
+        block_summaries = context.block_summaries if context else []
+        block_summaries_text = "\n".join(f"- {summary}" for summary in block_summaries) if block_summaries else "No prior blocks"
         formatted_prompt = BLOCK_GENERATION_SYSTEM_PROMPT.format(
-            block_focus=generated_prompt.block_focus,
-            suggested_html_structure=generated_prompt.suggested_html_structure,
-            rag_results=selected_rag_results
+            visitor_summary=visitor_summary,
+            user_input=user_input,
+            block_summaries=block_summaries_text,
+            rag_results=rag_results
         )
 
         # 5. Generate Block (Large model for quality)
