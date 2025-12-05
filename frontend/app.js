@@ -29,8 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         div.className = `message ${sender}`;
         div.textContent = text;
         chatHistory.appendChild(div);
-        chatHistory.scrollTop = chatHistory.scrollHeight;
-        
+
         chatHistoryData.push({ role: sender === 'user' ? 'user' : 'assistant', content: text });
     }
 
@@ -126,8 +125,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function generateBlock(actionType, actionValue, blockId = null) {
-        // Show loading indicator with a smooth transition
+        // Apply slide-down animation to AI disclaimer when loading new content
+        if (!blockId) {
+            // Slide down the AI disclaimer to make room for spinner
+            aiDisclaimer.classList.add('slide-down');
+        }
+
+        // Show loading indicator with a smooth fade-in transition
         loadingIndicator.classList.remove('hidden');
+
+        // Scroll loading indicator into view
+        setTimeout(() => {
+            loadingIndicator.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
 
         try {
             // Build context object
@@ -215,6 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 contentStream.appendChild(wrapper);
+
+                // Remove slide-down animation class after content is added
+                aiDisclaimer.classList.remove('slide-down');
             }
 
             // Scroll smoothly to the new block
@@ -227,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(err);
             alert("Failed to load content.");
         } finally {
-            // Hide loading indicator with a brief delay for smoother UX
+            // Hide loading indicator
             loadingIndicator.classList.add('hidden');
         }
     }
