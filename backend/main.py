@@ -22,9 +22,19 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Initializing database...")
     await init_db()
-    
+
+    logger.info("Running automatic incremental seed...")
+    try:
+        from seed import seed_data
+        await seed_data()
+        logger.info("Seed completed successfully")
+    except Exception as e:
+        logger.error(f"Seed failed: {e}", exc_info=True)
+        # Don't crash the app - allow it to start with existing data
+        logger.warning("App starting with existing data (seed failed)")
+
     yield
-    
+
     # Shutdown
     logger.info("Closing database pool...")
     await close_db_pool()

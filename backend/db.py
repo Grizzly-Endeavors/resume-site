@@ -33,7 +33,11 @@ async def init_db():
                 content TEXT NOT NULL,
                 skills TEXT[],
                 metadata JSONB DEFAULT '{}'::jsonb,
-                embedding vector(768) 
+                embedding vector(768),
+                source_file TEXT,
+                content_hash TEXT,
+                last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
         """)
         # Note: Embedding dimension 3072 is for newer Gemini models.
@@ -47,7 +51,18 @@ async def init_db():
         
         # Create HNSW index for faster search (disabled for 3072 dimensions)
         # await conn.execute("""
-        #     CREATE INDEX IF NOT EXISTS experiences_embedding_idx 
+        #     CREATE INDEX IF NOT EXISTS experiences_embedding_idx
         #     ON experiences USING hnsw (embedding vector_cosine_ops);
         # """)
+
+        # Create indexes for tracking columns
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_experiences_source_file
+            ON experiences(source_file);
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_experiences_content_hash
+            ON experiences(content_hash);
+        """)
 

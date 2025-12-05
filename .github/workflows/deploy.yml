@@ -1,0 +1,21 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - production
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          echo "CEREBRAS_API_KEY=${{ secrets.CEREBRAS_API_KEY }}" > .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+
+      - name: Deploy with Docker Compose
+        run: docker compose up --build -d
