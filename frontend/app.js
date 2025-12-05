@@ -10,6 +10,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatbarSend = document.getElementById('chatbar-send');
     const suggestedButtons = document.getElementById('suggested-buttons');
     const aiDisclaimer = document.getElementById('ai-disclaimer');
+    const disclaimerContactWrapper = document.querySelector('.disclaimer-contact-wrapper');
+
+    // Check if essential elements are found
+    if (!loadingIndicator) console.error('loadingIndicator not found');
+    if (!aiDisclaimer) console.error('aiDisclaimer not found');
+    if (!contentStream) console.error('contentStream not found');
+    if (!chatHistory) console.error('chatHistory not found');
+    if (!chatInput) console.error('chatInput not found');
+    if (!chatSend) console.error('chatSend not found');
+    if (!chatSection) console.error('chatSection not found');
+    if (!bottomChatbar) console.error('bottomChatbar not found');
+    if (!chatbarInput) console.error('chatbarInput not found');
+    if (!chatbarSend) console.error('chatbarSend not found');
+    if (!suggestedButtons) console.error('suggestedButtons not found');
+    if (!disclaimerContactWrapper) console.error('disclaimerContactWrapper not found');
 
     let visitorSummary = null;
     let isChatting = true;
@@ -121,18 +136,23 @@ document.addEventListener('DOMContentLoaded', () => {
     async function startBlockGeneration() {
         await generateBlock('initial_load', null);
 
-        bottomChatbar.classList.remove('hidden');
-        aiDisclaimer.classList.remove('hidden');
-        console.log('Bottom chatbar and AI disclaimer shown');
+        if (bottomChatbar) bottomChatbar.classList.remove('hidden');
+        if (disclaimerContactWrapper) disclaimerContactWrapper.classList.remove('hidden');
+        console.log('Bottom chatbar and disclaimer-contact-wrapper shown');
 
         await loadSuggestedButtons();
     }
 
     async function generateBlock(actionType, actionValue, blockId = null) {
-        // Apply slide-down animation to AI disclaimer when loading new content
+        if (!loadingIndicator || !aiDisclaimer || !contentStream || !disclaimerContactWrapper) {
+            console.error('Required DOM elements not found');
+            return;
+        }
+
+        // Apply slide-down animation to disclaimer-contact-wrapper when loading new content
         if (!blockId) {
-            // Slide down the AI disclaimer to make room for spinner
-            aiDisclaimer.classList.add('slide-down');
+            // Slide down the wrapper to make room for spinner
+            disclaimerContactWrapper.classList.add('slide-down');
         }
 
         // Show loading indicator with a smooth fade-in transition
@@ -140,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Scroll loading indicator into view
         setTimeout(() => {
-            loadingIndicator.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (loadingIndicator) loadingIndicator.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
 
         try {
@@ -231,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 contentStream.appendChild(wrapper);
 
                 // Remove slide-down animation class after content is added
-                aiDisclaimer.classList.remove('slide-down');
+                if (disclaimerContactWrapper) disclaimerContactWrapper.classList.remove('slide-down');
             }
 
             // Scroll smoothly to the new block
@@ -245,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Failed to load content.");
         } finally {
             // Hide loading indicator
-            loadingIndicator.classList.add('hidden');
+            if (loadingIndicator) loadingIndicator.classList.add('hidden');
         }
     }
 

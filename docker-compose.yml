@@ -10,6 +10,8 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - ./frontend:/app/frontend
     depends_on:
       - db
 
