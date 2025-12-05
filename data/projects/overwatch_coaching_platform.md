@@ -2,7 +2,7 @@
 **Dates:** Ongoing
 **Skills:** Next.js 14, TypeScript, React, PostgreSQL, Prisma ORM, NextAuth.js, Stripe, Discord.js, Docker, GitHub Actions, Tailwind CSS, Zod, Cloudflare Tunnel
 
-A production-grade Overwatch coaching platform featuring replay code submissions, custom appointment scheduling, Stripe payment processing, Discord notifications, and comprehensive admin panel. Demonstrates sophisticated full-stack development with advanced integrations, custom scheduling logic, real-time notifications, and enterprise-grade deployment automation. Available at coaching.bearflinn.com.
+A production-grade Overwatch coaching platform featuring replay code submissions, custom appointment scheduling, Stripe payment processing, Discord notifications, and comprehensive admin panel. Demonstrates sophisticated full-stack development with advanced integrations, custom scheduling logic, real-time notifications, and enterprise-grade deployment automation. Available at coaching.bearflinn.com. Repo: https://github.com/Grizzly-Endeavors/coaching-website
 
 ## Technical Achievements
 

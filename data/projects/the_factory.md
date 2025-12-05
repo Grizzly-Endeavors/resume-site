@@ -4,6 +4,8 @@
 
 A sophisticated factory simulation game built in Rust using the Bevy game engine, demonstrating advanced game architecture patterns and complex systems coordination. Players build and manage interconnected production facilities, coordinate autonomous workers, and scale factory operations through progressive automation.
 
+Repo: https://github.com/BearFlinn/the_factory
+
 ## Technical Achievements
 
 **Advanced Pathfinding System:**

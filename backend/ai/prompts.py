@@ -33,6 +33,7 @@ Generation Guidelines:
 6. If given a single experience, focus deeply on that one
 7. Be factual and avoid speculation
 8. Introduce variety in focus compared to previous sections
+9. Content should be written in first person implied without using I, me, or my
 
 HTML Instructions:
 1. Use clean, readable dark-mode styling (Use inline style="..." attributes ONLY. Do NOT use <style> tags as they conflict with other sections. Use CSS variables like var(--primary-color) for theming)

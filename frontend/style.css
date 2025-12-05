@@ -135,6 +135,7 @@ body {
         0 8px 32px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.05);
     animation: fadeInUp 0.6s ease-out 0.6s both;
+    will-change: height;
 }
 
 @keyframes fadeInUp {
@@ -153,7 +154,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: height;
 }
 
 .message {
@@ -163,18 +164,18 @@ body {
     font-size: 0.98rem;
     line-height: 1.6;
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
-    animation: messageSlide 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    transform: translateY(10px);
+    animation: messageSlide 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
 @keyframes messageSlide {
-    from {
+    0% {
         opacity: 0;
-        transform: translateY(20px) scale(0.95);
+        transform: translateY(10px);
     }
-    to {
+    100% {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translateY(0);
     }
 }
 

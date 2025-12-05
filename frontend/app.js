@@ -28,7 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const div = document.createElement('div');
         div.className = `message ${sender}`;
         div.textContent = text;
-        chatHistory.appendChild(div);
+
+        // Use requestAnimationFrame for smooth rendering
+        requestAnimationFrame(() => {
+            chatHistory.appendChild(div);
+        });
 
         chatHistoryData.push({ role: sender === 'user' ? 'user' : 'assistant', content: text });
     }

@@ -4,6 +4,8 @@
 
 An autonomous AI assistant managing productivity through natural conversation, built on Google's Agent Development Kit with Neo4j knowledge graphs and advanced sandbox security. Unlike traditional task management apps with AI features, Astra inverts the paradigm: users control direction while the AI controls execution autonomously handling planning, scheduling, task triage, and adaptation.
 
+Repo: https://github.com/BearFlinn/project-astra
+
 ## Technical Achievements
 
 **Agent Framework & Architecture:**

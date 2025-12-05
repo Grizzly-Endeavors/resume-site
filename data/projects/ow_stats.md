@@ -4,6 +4,8 @@
 
 A full-stack data analytics application for tracking and analyzing Overwatch 2 competitive performance using AI-powered screenshot parsing, interactive visualizations, and comprehensive statistical analysis. Demonstrates sophisticated integration of multimodal AI, relational database design, and modern frontend development.
 
+Repo: https://github.com/BearFlinn/OW-Stats
+
 ## Technical Achievements
 
 **AI/Machine Learning Integration:**
