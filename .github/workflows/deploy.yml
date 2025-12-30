@@ -19,7 +19,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} .
+          docker build -f backend/Dockerfile -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} .
           docker tag $REGISTRY/$IMAGE_NAME:${{ github.sha }} $REGISTRY/$IMAGE_NAME:latest
 
       - name: Push to registry
