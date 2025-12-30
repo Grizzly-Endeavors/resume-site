@@ -1,25 +1,55 @@
-name: Deploy to Production
+name: Build and Deploy
 
 on:
   push:
     branches:
       - production
 
+env:
+  REGISTRY: 10.0.0.226:32346
+  IMAGE_NAME: resume-site
+
 jobs:
-  deploy:
-    runs-on: self-hosted
+  build-and-deploy:
+    runs-on: [self-hosted, kubernetes, lab]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create .env file
+      - name: Build Docker image
         run: |
-          echo "CEREBRAS_API_KEY=${{ secrets.CEREBRAS_API_KEY }}" > .env
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
-          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
-          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-          echo "DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@db:5432/${{ secrets.POSTGRES_DB }}" >> .env
+          docker build -t $REGISTRY/$IMAGE_NAME:${{ github.sha }} .
+          docker tag $REGISTRY/$IMAGE_NAME:${{ github.sha }} $REGISTRY/$IMAGE_NAME:latest
 
-      - name: Deploy with Docker Compose
-        run: docker compose up --build -d
+      - name: Push to registry
+        run: |
+          docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
+          docker push $REGISTRY/$IMAGE_NAME:latest
+
+      - name: Deploy to Kubernetes with Helm
+        run: |
+          helm upgrade --install resume-site ./helm \
+            --create-namespace \
+            --namespace resume-site \
+            --set image.tag=latest \
+            --set secrets.cerebrasApiKey="${{ secrets.CEREBRAS_API_KEY }}" \
+            --set secrets.geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
+            --set database.password="${{ secrets.POSTGRES_PASSWORD }}" \
+            --wait \
+            --timeout 5m
+
+      - name: Clean up old images
+        run: |
+          docker image prune -f
+
+      - name: Build summary
+        run: |
+          echo "✅ Deployed successfully to Kubernetes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Service: resume-site" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`$REGISTRY/$IMAGE_NAME:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Ingress: \`resume.grizzly-endeavors.com\`" >> $GITHUB_STEP_SUMMARY

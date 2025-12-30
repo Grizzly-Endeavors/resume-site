@@ -1,0 +1,2 @@
+# Ignore values.yaml to prevent committing secrets
+values.yaml
