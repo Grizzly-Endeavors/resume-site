@@ -1,0 +1,54 @@
+# Example values file for resume-site
+# Copy this to values.yaml and fill in your actual secrets
+
+replicaCount: 1
+
+image:
+  registry: 10.0.0.226:32346
+  repository: resume-site
+  pullPolicy: Always
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  host: resume.bearflinn.com
+  tls:
+    enabled: false
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# Database configuration
+database:
+  enabled: true
+  image: pgvector/pgvector:pg16
+  port: 5432
+  name: resume_db
+  user: resume
+  password: "CHANGE_ME_STRONG_PASSWORD"
+  storage:
+    size: 10Gi
+    className: local-path
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+# Application secrets
+secrets:
+  cerebrasApiKey: "YOUR_CEREBRAS_API_KEY"
+  geminiApiKey: "YOUR_GEMINI_API_KEY"
