@@ -32,13 +32,13 @@ spec:
           protocol: TCP
         env:
         {{- if .Values.database.enabled }}
-        - name: DATABASE_URL
-          value: "postgresql://{{ .Values.database.user }}:$(DB_PASSWORD)@{{ .Chart.Name }}-db:{{ .Values.database.port }}/{{ .Values.database.name }}"
         - name: DB_PASSWORD
           valueFrom:
             secretKeyRef:
               name: {{ .Chart.Name }}-secrets
               key: database-password
+        - name: DATABASE_URL
+          value: "postgresql://{{ .Values.database.user }}:$(DB_PASSWORD)@{{ .Chart.Name }}-db:{{ .Values.database.port }}/{{ .Values.database.name }}"
         {{- end }}
         - name: CEREBRAS_API_KEY
           valueFrom:
