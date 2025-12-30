@@ -1,2 +1,4 @@
-# Ignore values.yaml to prevent committing secrets
-values.yaml
+# Patterns to ignore when packaging (helm package)
+# Note: values.yaml should NOT be ignored - it contains defaults
+# Secrets are passed via --set in CI/CD
+values.yaml.example
