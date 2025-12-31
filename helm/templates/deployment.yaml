@@ -31,6 +31,10 @@ spec:
           containerPort: {{ .Values.service.port }}
           protocol: TCP
         env:
+        - name: GRPC_DNS_RESOLVER
+          value: "native"
+        - name: GRPC_VERBOSITY
+          value: "ERROR"
         {{- if .Values.database.enabled }}
         - name: DB_PASSWORD
           valueFrom:
