@@ -39,7 +39,7 @@ database:
   password: ""
   storage:
     size: 10Gi
-    className: local-path
+    className: nfs-client
   resources:
     limits:
       cpu: 500m
