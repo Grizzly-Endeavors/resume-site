@@ -38,13 +38,15 @@ spec:
               key: database-password
         - name: POSTGRES_HOST_AUTH_METHOD
           value: trust
+        args:
+        - -c
+        - hba_file=/etc/postgresql/pg_hba.conf
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data
         - name: pg-config
           mountPath: /etc/postgresql/pg_hba.conf
           subPath: pg_hba.conf
-        command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
         resources:
           {{- toYaml .Values.database.resources | nindent 10 }}
         livenessProbe:
