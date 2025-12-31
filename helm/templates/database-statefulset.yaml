@@ -41,6 +41,10 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data
+        - name: pg-config
+          mountPath: /etc/postgresql/pg_hba.conf
+          subPath: pg_hba.conf
+        command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
         resources:
           {{- toYaml .Values.database.resources | nindent 10 }}
         livenessProbe:
@@ -63,4 +67,7 @@ spec:
       - name: data
         persistentVolumeClaim:
           claimName: {{ .Chart.Name }}-db-data
+      - name: pg-config
+        configMap:
+          name: {{ .Chart.Name }}-db-config
 {{- end }}
