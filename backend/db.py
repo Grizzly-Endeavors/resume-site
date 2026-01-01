@@ -21,8 +21,15 @@ async def get_db() -> aiosqlite.Connection:
         DB = await aiosqlite.connect(DB_PATH)
         DB.row_factory = aiosqlite.Row
 
-        # Enable extension loading and load sqlite-vec
+        # Enable extension loading (required for sqlite-vec)
+        await DB.execute("SELECT 1")  # Ensure connection is ready
+        DB._conn.enable_load_extension(True)
+
+        # Load sqlite-vec extension
         await DB.execute("SELECT load_extension(?)", [sqlite_vec.loadable_path()])
+
+        # Disable extension loading for security
+        DB._conn.enable_load_extension(False)
         await DB.commit()
     return DB
 
