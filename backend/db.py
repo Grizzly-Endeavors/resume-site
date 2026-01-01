@@ -18,19 +18,18 @@ async def get_db() -> aiosqlite.Connection:
     """Get or create database connection."""
     global DB
     if DB is None:
-        DB = await aiosqlite.connect(DB_PATH)
+        # check_same_thread=False allows accessing _conn from async context
+        DB = await aiosqlite.connect(DB_PATH, check_same_thread=False)
         DB.row_factory = aiosqlite.Row
 
         # Enable extension loading (required for sqlite-vec)
-        await DB.execute("SELECT 1")  # Ensure connection is ready
         DB._conn.enable_load_extension(True)
 
         # Load sqlite-vec extension
-        await DB.execute("SELECT load_extension(?)", [sqlite_vec.loadable_path()])
+        DB._conn.load_extension(sqlite_vec.loadable_path())
 
         # Disable extension loading for security
         DB._conn.enable_load_extension(False)
-        await DB.commit()
     return DB
 
 
