@@ -23,6 +23,11 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing database...")
     await init_db()
 
+    # Wait for network to be fully ready before seeding
+    logger.info("Waiting for network initialization...")
+    import asyncio
+    await asyncio.sleep(5)
+
     logger.info("Running automatic incremental seed...")
     try:
         from seed import seed_data
