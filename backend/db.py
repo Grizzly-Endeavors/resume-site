@@ -1,16 +1,28 @@
 import os
+import ssl
 import asyncpg
 from typing import Optional
 
 POOL: Optional[asyncpg.Pool] = None
 
+def get_ssl_context():
+    """Create SSL context for PostgreSQL connection with CA certificate."""
+    ca_cert_path = os.getenv("PGSSLROOTCERT")
+    if ca_cert_path and os.path.exists(ca_cert_path):
+        ctx = ssl.create_default_context(cafile=ca_cert_path)
+        ctx.check_hostname = False  # PostgreSQL service uses internal DNS
+        return ctx
+    return None
+
 async def get_db_pool():
     global POOL
     if POOL is None:
+        ssl_ctx = get_ssl_context()
         POOL = await asyncpg.create_pool(
             dsn=os.getenv("DATABASE_URL"),
             min_size=1,
-            max_size=10
+            max_size=10,
+            ssl=ssl_ctx if ssl_ctx else "require"
         )
     return POOL
 
