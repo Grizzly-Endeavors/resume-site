@@ -41,3 +41,6 @@ Thumbs.db
 *.temp
 plans/
 docs-notes/
+
+# Local database
+backend/data/

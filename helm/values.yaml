@@ -31,7 +31,7 @@ resources:
 
 # SQLite Configuration (embedded database with persistent volume)
 sqlite:
-  databasePath: /app/data/resume.db
+  databasePath: /app/db/resume.db
   persistence:
     enabled: true
     size: 1Gi
