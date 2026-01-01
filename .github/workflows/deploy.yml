@@ -30,8 +30,8 @@ jobs:
       - name: Copy TLS certificate secret
         run: |
           # Copy the PostgreSQL TLS CA certificate from database namespace
-          kubectl get secret postgresql-tls-ca -n database -o yaml | \
-            sed 's/namespace: database/namespace: resume-site/' | \
+          kubectl get secret postgresql-tls-ca -n database -o json | \
+            jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp) | .metadata.namespace = "resume-site"' | \
             kubectl apply -f -
 
       - name: Deploy to Kubernetes with Helm
