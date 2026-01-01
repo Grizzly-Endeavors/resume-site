@@ -27,6 +27,13 @@ jobs:
           docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
           docker push $REGISTRY/$IMAGE_NAME:latest
 
+      - name: Copy TLS certificate secret
+        run: |
+          # Copy the PostgreSQL TLS CA certificate from database namespace
+          kubectl get secret postgresql-tls-ca -n database -o yaml | \
+            sed 's/namespace: database/namespace: resume-site/' | \
+            kubectl apply -f -
+
       - name: Deploy to Kubernetes with Helm
         run: |
           helm upgrade --install resume-site ./helm \
@@ -35,7 +42,8 @@ jobs:
             --set image.tag=latest \
             --set secrets.cerebrasApiKey="${{ secrets.CEREBRAS_API_KEY }}" \
             --set secrets.geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
-            --set database.password="${{ secrets.POSTGRES_PASSWORD }}" \
+            --set postgresql.username="${{ secrets.POSTGRES_USERNAME_RESUME }}" \
+            --set postgresql.password="${{ secrets.POSTGRES_PASSWORD_RESUME }}" \
             --wait \
             --timeout 5m
 
