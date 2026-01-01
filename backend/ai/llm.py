@@ -8,7 +8,8 @@ from typing import List, Literal, Optional, Callable, Type, TypeVar
 from enum import Enum
 
 # Official SDKs
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from cerebras.cloud.sdk import Cerebras
 from pydantic import BaseModel, ValidationError
 
@@ -39,7 +40,7 @@ MODEL_CONFIG = {
     }
 }
 
-EMBEDDING_MODEL = "models/text-embedding-004"
+EMBEDDING_MODEL = "text-embedding-004"
 
 # Retry configuration
 MAX_RETRIES = 3
@@ -56,6 +57,7 @@ class LLMHandler:
 
     def __init__(self):
         self.cerebras_client: Optional[Cerebras] = None
+        self.gemini_client: Optional[genai.Client] = None
         self.gemini_configured: bool = False
         self._init_clients()
 
@@ -70,11 +72,12 @@ class LLMHandler:
 
         if GEMINI_API_KEY:
             try:
-                genai.configure(api_key=GEMINI_API_KEY)
+                # New google-genai library uses Client initialization instead of configure()
+                self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                 self.gemini_configured = True
-                logger.info("Gemini API configured successfully")
+                logger.info("Gemini API client initialized successfully")
             except Exception as e:
-                logger.warning(f"Failed to configure Gemini: {e}")
+                logger.warning(f"Failed to initialize Gemini client: {e}")
 
     def _format_schema_for_cerebras(self, pydantic_model: Type[BaseModel]) -> dict:
         """
@@ -96,13 +99,13 @@ class LLMHandler:
             }
         }
 
-    def _format_schema_for_gemini(self, pydantic_model: Type[BaseModel]) -> Type[BaseModel]:
+    def _format_schema_for_gemini(self, pydantic_model: Type[BaseModel]) -> dict:
         """
         Convert Pydantic model to Gemini-compatible schema format.
 
-        Gemini accepts Pydantic models directly in response_schema parameter.
+        Gemini accepts JSON schema directly via response_json_schema parameter.
         """
-        return pydantic_model
+        return pydantic_model.model_json_schema()
 
     async def _cerebras_call(self, prompt: str, system_prompt: str, model: str, timeout: int = 10) -> str:
         """Make a Cerebras API call with retry logic."""
@@ -196,15 +199,24 @@ class LLMHandler:
 
     async def _gemini_call(self, prompt: str, system_prompt: str, timeout: int = 30) -> str:
         """Make a Gemini API call with retry logic."""
-        if not self.gemini_configured:
+        if not self.gemini_client or not self.gemini_configured:
             raise Exception("Gemini API key not configured")
 
         def _call():
-            model = genai.GenerativeModel(
-                model_name=MODEL_CONFIG[ModelSize.SMALL]["fallback"],
-                system_instruction=system_prompt
+            # New google-genai library uses client.models.generate_content()
+            response = self.gemini_client.models.generate_content(
+                model=MODEL_CONFIG[ModelSize.SMALL]["fallback"],
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[types.Part(text=prompt)]
+                    )
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.7
+                )
             )
-            response = model.generate_content(prompt)
             return response.text
 
         # Retry logic with exponential backoff
@@ -231,22 +243,26 @@ class LLMHandler:
         timeout: int = 30
     ) -> BaseModel:
         """Make a Gemini API call with structured output and retry logic."""
-        if not self.gemini_configured:
+        if not self.gemini_client or not self.gemini_configured:
             raise Exception("Gemini API key not configured")
 
         schema_format = self._format_schema_for_gemini(response_model)
 
         def _call():
-            model = genai.GenerativeModel(
-                model_name=MODEL_CONFIG[ModelSize.SMALL]["fallback"],
-                system_instruction=system_prompt
-            )
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
+            # New google-genai library uses response_json_schema parameter
+            response = self.gemini_client.models.generate_content(
+                model=MODEL_CONFIG[ModelSize.SMALL]["fallback"],
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[types.Part(text=prompt)]
+                    )
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
                     response_mime_type="application/json",
-                    response_schema=schema_format,
-                    temperature=1.0  # Use default temperature for Gemini 2.5/3
+                    response_json_schema=schema_format,
+                    temperature=1.0
                 )
             )
 
@@ -378,18 +394,21 @@ class LLMHandler:
             text: The text to embed
             task_type: Either "retrieval_document" for stored content or "retrieval_query" for search queries
         """
-        if not self.gemini_configured:
+        if not self.gemini_client or not self.gemini_configured:
             raise Exception("Gemini API key not configured")
 
         def _call():
-            result = genai.embed_content(
+            # New google-genai library uses client.models.embed_content()
+            result = self.gemini_client.models.embed_content(
                 model=EMBEDDING_MODEL,
-                content=text,
-                task_type=task_type,
-                title="Resume Section" if task_type == "retrieval_document" else None,
-                output_dimensionality=768
+                contents=text,
+                config=types.EmbedContentConfig(
+                    task_type=task_type,
+                    output_dimensionality=768
+                )
             )
-            return result['embedding']
+            # The new SDK returns embeddings as a list of values
+            return result.embeddings[0].values
 
         try:
             return await asyncio.to_thread(_call)

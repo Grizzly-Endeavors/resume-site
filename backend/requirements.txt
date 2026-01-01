@@ -1,7 +1,7 @@
 fastapi
 uvicorn
-asyncpg
-pgvector
+aiosqlite
+sqlite-vec
 httpx
 pydantic
 pydantic-settings
@@ -9,7 +9,7 @@ python-dotenv
 beautifulsoup4
 markdown
 numpy
-google-generativeai
+google-genai
 cerebras_cloud_sdk
 pytest
 pytest-asyncio

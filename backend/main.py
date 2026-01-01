@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from contextlib import asynccontextmanager
 
-from db import init_db, close_db_pool
+from db import init_db, close_db
 from ai.generation import generation_handler
 from models import ChatRequest, ChatResponse, GenerateBlockRequest, GenerateBlockResponse, GenerateButtonsRequest, GenerateButtonsResponse, SuggestedButton, CompressedContext
 
@@ -36,8 +36,8 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("Closing database pool...")
-    await close_db_pool()
+    logger.info("Closing database connection...")
+    await close_db()
 
 app = FastAPI(lifespan=lifespan)
 

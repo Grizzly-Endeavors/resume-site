@@ -29,21 +29,13 @@ resources:
     cpu: 250m
     memory: 256Mi
 
-# PostgreSQL Configuration (centralized instance on tower-pc with pgvector)
-postgresql:
-  host: postgresql.database.svc.cluster.local
-  port: 5432
-  database: resume
-  sslmode: require
-  # Credentials injected via CI/CD
-  username: ""
-  password: ""
-  # TLS Configuration
-  tls:
+# SQLite Configuration (embedded database with persistent volume)
+sqlite:
+  databasePath: /app/data/resume.db
+  persistence:
     enabled: true
-    caSecretName: postgresql-tls-ca
-    caSecretNamespace: database
-    mountPath: /etc/postgresql/ssl
+    size: 1Gi
+    storageClass: ""
 
 # Application secrets (set via CI/CD)
 secrets:

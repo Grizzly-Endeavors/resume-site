@@ -27,13 +27,6 @@ jobs:
           docker push $REGISTRY/$IMAGE_NAME:${{ github.sha }}
           docker push $REGISTRY/$IMAGE_NAME:latest
 
-      - name: Copy TLS certificate secret
-        run: |
-          # Copy the PostgreSQL TLS CA certificate from database namespace
-          kubectl get secret postgresql-tls-ca -n database -o json | \
-            jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp) | .metadata.namespace = "resume-site"' | \
-            kubectl apply -f -
-
       - name: Deploy to Kubernetes with Helm
         run: |
           helm upgrade --install resume-site ./helm \
@@ -42,8 +35,6 @@ jobs:
             --set image.tag=latest \
             --set secrets.cerebrasApiKey="${{ secrets.CEREBRAS_API_KEY }}" \
             --set secrets.geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
-            --set postgresql.username="${{ secrets.POSTGRES_USERNAME_RESUME }}" \
-            --set postgresql.password="${{ secrets.POSTGRES_PASSWORD_RESUME }}" \
             --wait \
             --timeout 5m
 
@@ -60,4 +51,5 @@ jobs:
           echo "- Image: \`$REGISTRY/$IMAGE_NAME:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Ingress: \`resume.grizzly-endeavors.com\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Ingress: \`resume.bearflinn.com\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Database: SQLite (embedded with PVC)" >> $GITHUB_STEP_SUMMARY

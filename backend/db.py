@@ -1,80 +1,99 @@
 import os
-import ssl
-import asyncpg
+import json
+import aiosqlite
+import sqlite_vec
 from typing import Optional
 
-POOL: Optional[asyncpg.Pool] = None
+DB_PATH = os.getenv("DATABASE_PATH", "/app/data/resume.db")
+DB: Optional[aiosqlite.Connection] = None
 
-def get_ssl_context():
-    """Create SSL context for PostgreSQL connection with CA certificate."""
-    ca_cert_path = os.getenv("PGSSLROOTCERT")
-    if ca_cert_path and os.path.exists(ca_cert_path):
-        ctx = ssl.create_default_context(cafile=ca_cert_path)
-        ctx.check_hostname = False  # PostgreSQL service uses internal DNS
-        return ctx
-    return None
 
-async def get_db_pool():
-    global POOL
-    if POOL is None:
-        ssl_ctx = get_ssl_context()
-        POOL = await asyncpg.create_pool(
-            dsn=os.getenv("DATABASE_URL"),
-            min_size=1,
-            max_size=10,
-            ssl=ssl_ctx if ssl_ctx else "require"
-        )
-    return POOL
+def serialize_float32(vector: list) -> bytes:
+    """Serialize a list of floats to binary format for sqlite-vec."""
+    import struct
+    return struct.pack(f'{len(vector)}f', *vector)
 
-async def close_db_pool():
-    global POOL
-    if POOL:
-        await POOL.close()
+
+async def get_db() -> aiosqlite.Connection:
+    """Get or create database connection."""
+    global DB
+    if DB is None:
+        DB = await aiosqlite.connect(DB_PATH)
+        DB.row_factory = aiosqlite.Row
+
+        # Enable extension loading and load sqlite-vec
+        await DB.execute("SELECT load_extension(?)", [sqlite_vec.loadable_path()])
+        await DB.commit()
+    return DB
+
+
+async def close_db():
+    """Close database connection."""
+    global DB
+    if DB:
+        await DB.close()
+        DB = None
+
 
 async def init_db():
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        # Enable pgvector extension
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        
-        # Create experiences table
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS experiences (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                title TEXT NOT NULL,
-                content TEXT NOT NULL,
-                skills TEXT[],
-                metadata JSONB DEFAULT '{}'::jsonb,
-                embedding vector(768),
-                source_file TEXT,
-                content_hash TEXT,
-                last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-        """)
-        # Note: Embedding dimension 3072 is for newer Gemini models.
-        # The plan mentioned 1536 (OpenAI) or 384. I'll stick to 768 (Gemini Embedding) or 1536 if requested.
-        # The plan says "embedding (vector(1536)) -- or 384 depending on model".
-        # Since we are using Gemini as fallback and Cerebras (likely Llama models), we need an embedding model.
-        # I'll assume we use a standard embedding model compatible with what we can access. 
-        # For now, let's stick to 768 (text-embedding-004 from Google) or similar.
-        # Let's check the plan again... it doesn't specify the *embedding* model, just the chat model.
-        # I will assume 768 for now as it's a good middle ground and compatible with Google's embeddings.
-        
-        # Create HNSW index for faster search (disabled for 3072 dimensions)
-        # await conn.execute("""
-        #     CREATE INDEX IF NOT EXISTS experiences_embedding_idx
-        #     ON experiences USING hnsw (embedding vector_cosine_ops);
-        # """)
+    """Initialize database schema."""
+    db = await get_db()
 
-        # Create indexes for tracking columns
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_experiences_source_file
-            ON experiences(source_file);
-        """)
+    # Create experiences table for metadata
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS experiences (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            skills TEXT DEFAULT '[]',
+            metadata TEXT DEFAULT '{}',
+            source_file TEXT,
+            content_hash TEXT,
+            last_updated TEXT DEFAULT (datetime('now')),
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
 
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_experiences_content_hash
-            ON experiences(content_hash);
-        """)
+    # Create indexes
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_experiences_source_file
+        ON experiences(source_file)
+    """)
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_experiences_content_hash
+        ON experiences(content_hash)
+    """)
 
+    # Create virtual table for vector search
+    # vec0 virtual tables store vectors with a rowid that we'll map to experience id
+    await db.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS experience_vectors USING vec0(
+            embedding float[768]
+        )
+    """)
+
+    # Create a mapping table to link vector rowids to experience ids
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS vector_mapping (
+            vector_rowid INTEGER PRIMARY KEY,
+            experience_id TEXT NOT NULL,
+            FOREIGN KEY (experience_id) REFERENCES experiences(id) ON DELETE CASCADE
+        )
+    """)
+    await db.execute("""
+        CREATE INDEX IF NOT EXISTS idx_vector_mapping_experience
+        ON vector_mapping(experience_id)
+    """)
+
+    await db.commit()
+
+
+# Legacy compatibility aliases
+async def get_db_pool():
+    """Legacy alias for get_db - returns connection for compatibility."""
+    return await get_db()
+
+
+async def close_db_pool():
+    """Legacy alias for close_db."""
+    await close_db()

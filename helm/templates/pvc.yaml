@@ -1,0 +1,17 @@
+{{- if .Values.sqlite.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Chart.Name }}-sqlite-pvc
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.sqlite.persistence.size }}
+  {{- if .Values.sqlite.persistence.storageClass }}
+  storageClassName: {{ .Values.sqlite.persistence.storageClass }}
+  {{- end }}
+{{- end }}

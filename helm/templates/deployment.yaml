@@ -16,10 +16,6 @@ spec:
         app: {{ .Chart.Name }}
         component: app
     spec:
-      initContainers:
-      - name: wait-for-db
-        image: busybox:1.35
-        command: ['sh', '-c', 'until nc -z {{ .Values.postgresql.host }} {{ .Values.postgresql.port }}; do echo waiting for database; sleep 2; done;']
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -29,19 +25,8 @@ spec:
           containerPort: {{ .Values.service.port }}
           protocol: TCP
         env:
-        - name: GRPC_DNS_RESOLVER
-          value: "native"
-        - name: GRPC_VERBOSITY
-          value: "ERROR"
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Chart.Name }}-secrets
-              key: database-url
-        {{- if .Values.postgresql.tls.enabled }}
-        - name: PGSSLROOTCERT
-          value: {{ .Values.postgresql.tls.mountPath }}/ca.crt
-        {{- end }}
+        - name: DATABASE_PATH
+          value: {{ .Values.sqlite.databasePath }}
         - name: CEREBRAS_API_KEY
           valueFrom:
             secretKeyRef:
@@ -52,11 +37,10 @@ spec:
             secretKeyRef:
               name: {{ .Chart.Name }}-secrets
               key: gemini-api-key
-        {{- if .Values.postgresql.tls.enabled }}
+        {{- if .Values.sqlite.persistence.enabled }}
         volumeMounts:
-        - name: postgres-ca
-          mountPath: {{ .Values.postgresql.tls.mountPath }}
-          readOnly: true
+        - name: sqlite-data
+          mountPath: /app/data
         {{- end }}
         livenessProbe:
           httpGet:
@@ -72,12 +56,9 @@ spec:
           periodSeconds: 5
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
-      {{- if .Values.postgresql.tls.enabled }}
+      {{- if .Values.sqlite.persistence.enabled }}
       volumes:
-      - name: postgres-ca
-        secret:
-          secretName: {{ .Values.postgresql.tls.caSecretName }}
-          items:
-          - key: ca.crt
-            path: ca.crt
+      - name: sqlite-data
+        persistentVolumeClaim:
+          claimName: {{ .Chart.Name }}-sqlite-pvc
       {{- end }}

@@ -39,11 +39,14 @@ class TestSchemaAdapters:
         assert "properties" in json_schema["schema"]
 
     def test_gemini_schema_format(self):
-        """Test that Gemini schema formatter returns the model class."""
+        """Test that Gemini schema formatter returns JSON schema dict."""
         schema = llm_handler._format_schema_for_gemini(SimpleModel)
 
-        assert schema == SimpleModel
-        assert issubclass(schema, BaseModel)
+        # New google-genai uses JSON schema dict, not Pydantic model
+        assert isinstance(schema, dict)
+        assert "properties" in schema
+        assert "text" in schema["properties"]
+        assert "count" in schema["properties"]
 
     def test_schema_adapter_preserves_model_info(self):
         """Test that schema adapters preserve model metadata."""
@@ -51,7 +54,8 @@ class TestSchemaAdapters:
         assert cerebras_schema["json_schema"]["name"] == "ButtonList"
 
         gemini_schema = llm_handler._format_schema_for_gemini(ButtonList)
-        assert gemini_schema.__name__ == "ButtonList"
+        # JSON schema dict should have title field
+        assert gemini_schema.get("title") == "ButtonList"
 
 
 class TestStructuredOutputExceptions:
@@ -185,31 +189,33 @@ class TestGeminiStructuredCall:
     @pytest.mark.asyncio
     async def test_gemini_structured_call_success(self):
         """Test successful Gemini structured output call."""
-        with patch('ai.llm.genai.GenerativeModel') as mock_model_class:
-            mock_model = MagicMock()
-            mock_model_class.return_value = mock_model
-
+        with patch.object(llm_handler, 'gemini_client') as mock_client:
+            # Setup mock response using new google-genai client API
             mock_response = MagicMock()
             mock_response.text = '{"text": "gemini_result", "count": 99}'
-            mock_model.generate_content.return_value = mock_response
+            mock_client.models.generate_content.return_value = mock_response
 
-            result = await llm_handler._gemini_structured_call(
-                prompt="test",
-                system_prompt="test",
-                response_model=SimpleModel
-            )
+            # Ensure gemini_configured is True
+            original_configured = llm_handler.gemini_configured
+            llm_handler.gemini_configured = True
 
-            assert isinstance(result, SimpleModel)
-            assert result.text == "gemini_result"
-            assert result.count == 99
+            try:
+                result = await llm_handler._gemini_structured_call(
+                    prompt="test",
+                    system_prompt="test",
+                    response_model=SimpleModel
+                )
+
+                assert isinstance(result, SimpleModel)
+                assert result.text == "gemini_result"
+                assert result.count == 99
+            finally:
+                llm_handler.gemini_configured = original_configured
 
     @pytest.mark.asyncio
     async def test_gemini_structured_call_validation_error_retries(self):
         """Test that Gemini validation errors trigger retries."""
-        with patch('ai.llm.genai.GenerativeModel') as mock_model_class:
-            mock_model = MagicMock()
-            mock_model_class.return_value = mock_model
-
+        with patch.object(llm_handler, 'gemini_client') as mock_client:
             # First call returns invalid data, second call returns valid
             mock_response_invalid = MagicMock()
             mock_response_invalid.text = '{"text": "test"}'  # Missing 'count'
@@ -217,17 +223,24 @@ class TestGeminiStructuredCall:
             mock_response_valid = MagicMock()
             mock_response_valid.text = '{"text": "test", "count": 20}'
 
-            mock_model.generate_content.side_effect = [mock_response_invalid, mock_response_valid]
+            mock_client.models.generate_content.side_effect = [mock_response_invalid, mock_response_valid]
 
-            result = await llm_handler._gemini_structured_call(
-                prompt="test",
-                system_prompt="test",
-                response_model=SimpleModel
-            )
+            # Ensure gemini_configured is True
+            original_configured = llm_handler.gemini_configured
+            llm_handler.gemini_configured = True
 
-            assert result.text == "test"
-            assert result.count == 20
-            assert mock_model.generate_content.call_count == 2
+            try:
+                result = await llm_handler._gemini_structured_call(
+                    prompt="test",
+                    system_prompt="test",
+                    response_model=SimpleModel
+                )
+
+                assert result.text == "test"
+                assert result.count == 20
+                assert mock_client.models.generate_content.call_count == 2
+            finally:
+                llm_handler.gemini_configured = original_configured
 
     @pytest.mark.asyncio
     async def test_gemini_structured_call_not_configured_raises(self):

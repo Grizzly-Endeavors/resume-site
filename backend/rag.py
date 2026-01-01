@@ -1,10 +1,11 @@
 import json
 import logging
-from db import get_db_pool
+from db import get_db, serialize_float32
 from ai.llm import llm_handler
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
+
 
 def apply_diversity_scoring(
     results: List[Dict[str, Any]],
@@ -37,50 +38,68 @@ def apply_diversity_scoring(
     results.sort(key=lambda x: x['similarity'], reverse=True)
     return results
 
+
 async def search_similar_experiences(
     query: str,
     limit: int = 5,
     shown_counts: Optional[Dict[str, int]] = None
 ) -> List[Dict[str, Any]]:
-    """Search with optional diversity scoring"""
-    pool = await get_db_pool()
+    """Search with optional diversity scoring using sqlite-vec."""
+    db = await get_db()
 
     shown_count = sum(shown_counts.values()) if shown_counts else 0
     logger.info(f"[RAG Search] Query: '{query}', Shown counts: {shown_count}")
     query_embedding = await llm_handler.generate_embedding(query, task_type="retrieval_query")
 
-    # Format embedding for pgvector
-    embedding_str = f"[{','.join(map(str, query_embedding))}]"
+    # Serialize embedding for sqlite-vec
+    embedding_blob = serialize_float32(query_embedding)
 
-    async with pool.acquire() as conn:
-        # Fetch more results than needed for better diversity (fetch 2x limit)
-        fetch_limit = limit * 2 if shown_counts else limit
+    # Fetch more results than needed for better diversity (fetch 2x limit)
+    fetch_limit = limit * 2 if shown_counts else limit
 
-        rows = await conn.fetch("""
-            SELECT id, title, content, skills, metadata, 
-                   1 - (embedding <=> $1) as similarity
-            FROM experiences
-            ORDER BY embedding <=> $1
-            LIMIT $2
-        """, embedding_str, fetch_limit)
-        
-        results = []
-        for row in rows:
-            results.append({
-                "id": str(row["id"]),
-                "title": row["title"],
-                "content": row["content"],
-                "skills": row["skills"],
-                "metadata": json.loads(row["metadata"]) if isinstance(row["metadata"], str) else row["metadata"],
-                "similarity": row["similarity"]
-            })
-            
-        # Apply diversity scoring if shown_counts provided
-        if shown_counts:
-            results = apply_diversity_scoring(results, shown_counts)
+    # Query sqlite-vec virtual table and join with experiences
+    cursor = await db.execute("""
+        SELECT
+            e.id,
+            e.title,
+            e.content,
+            e.skills,
+            e.metadata,
+            v.distance
+        FROM experience_vectors v
+        JOIN vector_mapping m ON v.rowid = m.vector_rowid
+        JOIN experiences e ON m.experience_id = e.id
+        WHERE v.embedding MATCH ?
+        ORDER BY v.distance
+        LIMIT ?
+    """, [embedding_blob, fetch_limit])
 
-        # Return requested limit after re-ranking
-        return results[:limit]
+    rows = await cursor.fetchall()
+
+    results = []
+    for row in rows:
+        # Convert distance to similarity (sqlite-vec uses L2 distance by default)
+        # Lower distance = higher similarity
+        # Normalize to 0-1 range: similarity = 1 / (1 + distance)
+        distance = row["distance"]
+        similarity = 1.0 / (1.0 + distance)
+
+        results.append({
+            "id": row["id"],
+            "title": row["title"],
+            "content": row["content"],
+            "skills": json.loads(row["skills"]) if row["skills"] else [],
+            "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+            "similarity": similarity
+        })
+
+    # Apply diversity scoring if shown_counts provided
+    if shown_counts:
+        results = apply_diversity_scoring(results, shown_counts)
+
+    # Return requested limit after re-ranking
+    return results[:limit]
+
 
 async def format_rag_results(results: List[Dict[str, Any]]) -> str:
     formatted = ""
