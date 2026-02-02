@@ -32,7 +32,7 @@ jobs:
           helm upgrade --install resume-site ./helm \
             --create-namespace \
             --namespace resume-site \
-            --set image.tag=latest \
+            --set image.tag=${{ github.sha }} \
             --set secrets.cerebrasApiKey="${{ secrets.CEREBRAS_API_KEY }}" \
             --set secrets.geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
             --wait \
