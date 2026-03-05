@@ -69,9 +69,8 @@ async def search_similar_experiences(
         FROM experience_vectors v
         JOIN vector_mapping m ON v.rowid = m.vector_rowid
         JOIN experiences e ON m.experience_id = e.id
-        WHERE v.embedding MATCH ?
+        WHERE v.embedding MATCH ? AND k = ?
         ORDER BY v.distance
-        LIMIT ?
     """, [embedding_blob, fetch_limit])
 
     rows = await cursor.fetchall()
