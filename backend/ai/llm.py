@@ -38,7 +38,7 @@ MODEL_CONFIG = {
 EMBEDDING_MODEL = "gemini-embedding-001"
 
 # Retry configuration
-MAX_RETRIES = 3
+MAX_RETRIES = 2
 BASE_BACKOFF_SECONDS = 1.0
 
 
@@ -406,11 +406,20 @@ class LLMHandler:
             # The new SDK returns embeddings as a list of values
             return result.embeddings[0].values
 
-        try:
-            return await asyncio.to_thread(_call)
-        except Exception as e:
-            logger.error(f"Embedding generation failed: {e}")
-            raise
+        last_exception = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                return await asyncio.to_thread(_call)
+            except Exception as e:
+                last_exception = e
+                if attempt < MAX_RETRIES - 1:
+                    backoff_time = BASE_BACKOFF_SECONDS * (2 ** attempt)
+                    logger.warning(f"Embedding generation attempt {attempt + 1}/{MAX_RETRIES} failed: {e}. Retrying in {backoff_time}s...")
+                    await asyncio.sleep(backoff_time)
+                else:
+                    logger.error(f"Embedding generation failed after {MAX_RETRIES} attempts: {e}")
+
+        raise last_exception
 
 
 # Global LLM handler instance
