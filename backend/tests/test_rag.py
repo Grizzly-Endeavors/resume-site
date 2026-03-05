@@ -80,7 +80,7 @@ async def test_search_similar_experiences():
 async def test_search_similar_experiences_with_diversity():
     # Mock data
     query = "test query"
-    mock_embedding = [0.1] * 768
+    mock_embedding = [0.1] * 3072
 
     # Create mock rows that behave like dict
     class MockRow:

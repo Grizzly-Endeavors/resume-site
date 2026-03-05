@@ -203,6 +203,7 @@ class TestGeminiStructuredCall:
                 result = await llm_handler._gemini_structured_call(
                     prompt="test",
                     system_prompt="test",
+                    model="gemini-3-1-flash-lite",
                     response_model=SimpleModel
                 )
 
@@ -233,6 +234,7 @@ class TestGeminiStructuredCall:
                 result = await llm_handler._gemini_structured_call(
                     prompt="test",
                     system_prompt="test",
+                    model="gemini-3-1-flash-lite",
                     response_model=SimpleModel
                 )
 
@@ -253,6 +255,7 @@ class TestGeminiStructuredCall:
                 await llm_handler._gemini_structured_call(
                     prompt="test",
                     system_prompt="test",
+                    model="gemini-3-1-flash-lite",
                     response_model=SimpleModel
                 )
 
@@ -317,7 +320,7 @@ class TestOutputStructureMethod:
 
             # Verify that the LARGE model was passed
             call_args = mock_cerebras.call_args
-            assert call_args[0][2] == "qwen-3-235b-a22b-instruct-2507"  # LARGE model
+            assert call_args[0][2] == "gpt-oss-120b"  # LARGE model
 
 
 class TestButtonListModel:

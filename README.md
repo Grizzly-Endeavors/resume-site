@@ -12,19 +12,18 @@ This platform replaces traditional static resumes with an AI-driven conversation
 
 ### Backend Stack
 - **FastAPI** - Async web framework with automatic OpenAPI documentation
-- **PostgreSQL 16 + pgvector** - Vector database for semantic search with 768-dimensional embeddings
+- **PostgreSQL 16 + pgvector** - Vector database for semantic search with 3072-dimensional embeddings
 - **asyncpg** - High-performance async PostgreSQL driver with connection pooling
 - **Multi-Model LLM Strategy:**
   - **Primary Models (Cerebras):**
     - **Llama 3.1 8B** - Fast operations (summaries, structured output)
-    - **Qwen 3 32B** - Balanced quality/speed for medium tasks
-    - **Qwen 3 235B** - High-quality generation (chat, HTML blocks)
+    - **GPT-OSS 120B** - High-quality generation (chat, HTML blocks)
   - **Fallback Models (Google Gemini):**
-    - **Gemini Flash Lite** - Fallback for small/medium tasks
-    - **Gemini Flash** - Fallback for large tasks with structured output support
+    - **Gemini 3.1 Flash Lite** - Fallback for small tasks
+    - **Gemini 3 Flash** - Fallback for large tasks with structured output support
   - **Task-Specific Selection:**
-    - Chat onboarding: `ModelSize.LARGE` (Qwen 3 235B) for conversational quality
-    - HTML block generation: `ModelSize.LARGE` (Qwen 3 235B) for creative content
+    - Chat onboarding: `ModelSize.LARGE` (GPT-OSS 120B) for conversational quality
+    - HTML block generation: `ModelSize.LARGE` (GPT-OSS 120B) for creative content
     - Block summaries: `ModelSize.SMALL` (Llama 3.1 8B) for speed
     - Button suggestions: `ModelSize.SMALL` (Llama 3.1 8B) with structured output
 
@@ -41,7 +40,7 @@ CREATE TABLE experiences (
     content TEXT NOT NULL,
     skills TEXT[],
     metadata JSONB,
-    embedding vector(768),
+    embedding vector(3072),
     source_file TEXT,
     content_hash TEXT,
     last_updated TIMESTAMP WITH TIME ZONE,
@@ -60,7 +59,7 @@ CREATE TABLE experiences (
 ### 2. Semantic Search with RAG
 - pgvector cosine similarity search finds relevant experiences
 - Context-aware deduplication tracks shown experiences to maintain variety
-- Embedding generation via Google Gemini `text-embedding-004` model
+- Embedding generation via Google Gemini `gemini-embedding-001` model
 - Incremental seeding system with MD5 hash tracking for automatic updates
 
 ### 3. Dynamic Content Generation
@@ -159,17 +158,16 @@ curl http://localhost:8000/api/health
 ```
 
 ### Embedding Generation
-- **Google Gemini text-embedding-004** - 768-dimensional embeddings for semantic search
+- **Google Gemini gemini-embedding-001** - 3072-dimensional embeddings for semantic search
 - **Task-Type Optimization:** `retrieval_document` for stored content, `retrieval_query` for searches
 - **Async Generation:** Non-blocking embedding creation during seeding
 
 ## Technical Highlights
 
 ### Multi-Model LLM Architecture
-- **Three-Tier Model Strategy:**
-  - `ModelSize.SMALL`: Llama 3.1 8B (primary) / Gemini Flash Lite (fallback) - Fast operations
-  - `ModelSize.MEDIUM`: Qwen 3 32B (primary) / Gemini Flash Lite (fallback) - Balanced tasks
-  - `ModelSize.LARGE`: Qwen 3 235B (primary) / Gemini Flash (fallback) - High-quality generation
+- **Two-Tier Model Strategy:**
+  - `ModelSize.SMALL`: Llama 3.1 8B (primary) / Gemini 3.1 Flash Lite (fallback) - Fast operations
+  - `ModelSize.LARGE`: GPT-OSS 120B (primary) / Gemini 3 Flash (fallback) - High-quality generation
 - **Automatic Failover:** 3 retries with exponential backoff per provider before fallback
 - **Task-Optimized Selection:**
   - Chat responses: LARGE model for natural, engaging conversation

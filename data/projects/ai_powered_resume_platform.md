@@ -9,19 +9,19 @@ Repo: https://github.com/Grizzly-Endeavors/resume-site
 ## Technical Achievements
 
 **RAG-Powered Semantic Search:**
-- Implemented pgvector extension with 768-dimensional embeddings for experience retrieval
+- Implemented pgvector extension with 3072-dimensional embeddings for experience retrieval
 - Built cosine similarity search with context-aware ranking penalizing recently shown content
-- Integrated Google Gemini text-embedding-004 model for semantic vector generation
+- Integrated Google Gemini gemini-embedding-001 model for semantic vector generation
 - Designed top-k retrieval system (configurable limit, default 5) with relevance scoring
 - Created efficient query pipeline combining vector search with metadata filtering
 
 **Multi-Model LLM Architecture with Intelligent Fallback:**
-- Architected three-tier model strategy across six models (3 Cerebras primary + 3 Gemini fallback)
-- Configured task-optimized model selection: Llama 3.1 8B (speed), Qwen 3 32B (balanced), Qwen 3 235B (quality)
+- Architected two-tier model strategy across four models (2 Cerebras primary + 2 Gemini fallback)
+- Configured task-optimized model selection: Llama 3.1 8B (speed), GPT-OSS 120B (quality)
 - Implemented automatic failover with 3 retries per provider using exponential backoff (1s, 2s, 4s)
 - Built strategic model routing: LARGE for chat/blocks (quality), SMALL for summaries/buttons (speed)
 - Designed dual structured output systems: OpenAI-compatible json_schema (Cerebras) and native response_schema (Gemini)
-- Created think-tag filtering removing reasoning tokens from Qwen model outputs
+- Created think-tag filtering removing reasoning tokens from model outputs
 - Implemented temperature tuning: 0.0 for deterministic structured output, 0.7 for creative generation
 
 **Conversational Onboarding System:**

@@ -74,7 +74,7 @@ async def init_db():
     # vec0 virtual tables store vectors with a rowid that we'll map to experience id
     await db.execute("""
         CREATE VIRTUAL TABLE IF NOT EXISTS experience_vectors USING vec0(
-            embedding float[768]
+            embedding float[3072]
         )
     """)
 

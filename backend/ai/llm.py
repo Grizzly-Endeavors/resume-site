@@ -21,26 +21,21 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Model size definitions
 class ModelSize(Enum):
     SMALL = "small"   # Fast, simple tasks (8B)
-    MEDIUM = "medium" # Balanced quality/speed (32B)
-    LARGE = "large"   # High quality generation (235B)
+    LARGE = "large"   # High quality generation (120B)
 
 # Model configurations
 MODEL_CONFIG = {
     ModelSize.SMALL: {
         "main": "llama3.1-8b",
-        "fallback": "gemini-flash-lite-latest"
-    },
-    ModelSize.MEDIUM: {
-        "main": "qwen-3-32b",
-        "fallback": "gemini-flash-lite-latest"
+        "fallback": "gemini-3-1-flash-lite"
     },
     ModelSize.LARGE: {
-        "main": "qwen-3-235b-a22b-instruct-2507",
-        "fallback": "gemini-flash-latest"
+        "main": "gpt-oss-120b",
+        "fallback": "gemini-3-flash"
     }
 }
 
-EMBEDDING_MODEL = "text-embedding-004"
+EMBEDDING_MODEL = "gemini-embedding-001"
 
 # Retry configuration
 MAX_RETRIES = 3
@@ -197,7 +192,7 @@ class LLMHandler:
 
         raise last_exception
 
-    async def _gemini_call(self, prompt: str, system_prompt: str, timeout: int = 30) -> str:
+    async def _gemini_call(self, prompt: str, system_prompt: str, model: str, timeout: int = 30) -> str:
         """Make a Gemini API call with retry logic."""
         if not self.gemini_client or not self.gemini_configured:
             raise Exception("Gemini API key not configured")
@@ -205,7 +200,7 @@ class LLMHandler:
         def _call():
             # New google-genai library uses client.models.generate_content()
             response = self.gemini_client.models.generate_content(
-                model=MODEL_CONFIG[ModelSize.SMALL]["fallback"],
+                model=model,
                 contents=[
                     types.Content(
                         role="user",
@@ -239,6 +234,7 @@ class LLMHandler:
         self,
         prompt: str,
         system_prompt: str,
+        model: str,
         response_model: Type[BaseModel],
         timeout: int = 30
     ) -> BaseModel:
@@ -251,7 +247,7 @@ class LLMHandler:
         def _call():
             # New google-genai library uses response_json_schema parameter
             response = self.gemini_client.models.generate_content(
-                model=MODEL_CONFIG[ModelSize.SMALL]["fallback"],
+                model=model,
                 contents=[
                     types.Content(
                         role="user",
@@ -318,14 +314,14 @@ class LLMHandler:
         Args:
             prompt: User prompt
             system_prompt: System instruction
-            size: Model size (SMALL, MEDIUM, or LARGE)
+            size: Model size (SMALL or LARGE)
             timeout: Request timeout in seconds
         """
         config = MODEL_CONFIG[size]
 
         return await self.handle_fallback(
             lambda: self._cerebras_call(prompt, system_prompt, config["main"], timeout),
-            lambda: self._gemini_call(prompt, system_prompt, timeout)
+            lambda: self._gemini_call(prompt, system_prompt, config["fallback"], timeout)
         )
 
     async def output_structure(
@@ -346,7 +342,7 @@ class LLMHandler:
         Args:
             prompt: User prompt
             system_prompt: System instruction
-            size: Model size (SMALL, MEDIUM, or LARGE)
+            size: Model size (SMALL or LARGE)
             response_model: Pydantic model class for response validation
             timeout: Request timeout in seconds
 
@@ -374,7 +370,7 @@ class LLMHandler:
                     prompt, system_prompt, config["main"], response_model, timeout
                 ),
                 lambda: self._gemini_structured_call(
-                    prompt, system_prompt, response_model, timeout
+                    prompt, system_prompt, config["fallback"], response_model, timeout
                 )
             )
         except Exception as e:
@@ -388,7 +384,7 @@ class LLMHandler:
 
     async def generate_embedding(self, text: str, task_type: str = "retrieval_document") -> List[float]:
         """
-        Generates embedding using Gemini API (text-embedding-004).
+        Generates embedding using Gemini API (gemini-embedding-001).
 
         Args:
             text: The text to embed
@@ -404,7 +400,7 @@ class LLMHandler:
                 contents=text,
                 config=types.EmbedContentConfig(
                     task_type=task_type,
-                    output_dimensionality=768
+                    output_dimensionality=3072
                 )
             )
             # The new SDK returns embeddings as a list of values
