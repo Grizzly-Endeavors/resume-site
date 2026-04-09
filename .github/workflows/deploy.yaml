@@ -1,0 +1,75 @@
+name: Build and Deploy
+
+# Push to main:
+#   1. Build the FastAPI container image from backend/Dockerfile on a
+#      lab-runners ARC pod.
+#   2. Push to the in-cluster OCI registry at
+#      registry.registry.svc.cluster.local:5000.
+#   3. Bump image.tag in deploy/values.yaml and commit back with [skip ci].
+#   4. Flux reconciles within ~1 minute.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'deploy/values.yaml'
+      - '**.md'
+      - '.github/**'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: registry.registry.svc.cluster.local:5000
+  IMAGE: resume-site
+
+jobs:
+  build-and-bump:
+    runs-on: lab-runners
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          docker build \
+            -f backend/Dockerfile \
+            -t "$REGISTRY/$IMAGE:${{ github.sha }}" \
+            -t "$REGISTRY/$IMAGE:latest" \
+            .
+
+      - name: Push image
+        run: |
+          docker push "$REGISTRY/$IMAGE:${{ github.sha }}"
+          docker push "$REGISTRY/$IMAGE:latest"
+
+      - name: Install yq
+        run: |
+          sudo curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Bump image tag in deploy/values.yaml
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          yq -i ".image.repository = \"${REGISTRY}/${IMAGE}\"" deploy/values.yaml
+          yq -i ".image.tag = strenv(SHA)" deploy/values.yaml
+          yq '.image' deploy/values.yaml
+
+      - name: Commit tag bump
+        run: |
+          set -euo pipefail
+          if git diff --quiet deploy/values.yaml; then
+            echo "No tag change, skipping commit"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deploy/values.yaml
+          git commit -m "chore(deploy): bump image tag to ${GITHUB_SHA:0:7} [skip ci]"
+          git push
