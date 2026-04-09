@@ -1,0 +1,40 @@
+# Default values for resume-site.
+# API keys (CEREBRAS_API_KEY, GEMINI_API_KEY) are created out-of-band by
+# lab-iac's ansible/playbooks/seed-app-secrets.yml --tags resume-site,
+# mounted via envFrom.secretRef so Flux never sees them in git. See
+# docs/decisions/020-app-delivery-model.md.
+
+replicaCount: 1
+
+image:
+  repository: registry.registry.svc.cluster.local:5000/resume-site
+  tag: "latest"  # bumped by CI on each push to main
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  host: resume.bearflinn.com
+  tls:
+    enabled: false
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# SQLite Configuration (embedded database with persistent volume)
+sqlite:
+  databasePath: /app/db/resume.db
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: iscsi-zfs  # explicit; iscsi-zfs is the cluster default but we pin it

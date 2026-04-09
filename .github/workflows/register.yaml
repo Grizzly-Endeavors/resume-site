@@ -1,0 +1,37 @@
+name: Register with Flux
+
+# One-time onboarding. Calls the reusable register-app.yaml in lab-iac
+# which opens an auto-merging PR adding this app to kubernetes/apps/.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: "Short name for the app (DNS-1123)"
+        required: true
+        type: string
+      namespace:
+        description: "Kubernetes namespace (DNS-1123)"
+        required: true
+        type: string
+      ingress_host:
+        description: "Ingress hostname (optional)"
+        required: false
+        type: string
+        default: ""
+      auto_merge:
+        description: "Auto-merge the onboarding PR on lab-iac"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  register:
+    uses: grizzly-endeavors/lab-iac/.github/workflows/register-app.yaml@master
+    with:
+      app_name: ${{ inputs.app_name }}
+      repo_full_name: ${{ github.repository }}
+      deploy_path: "./deploy"
+      namespace: ${{ inputs.namespace }}
+      auto_merge: ${{ inputs.auto_merge }}
+    secrets: inherit
