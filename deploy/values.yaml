@@ -5,16 +5,13 @@
 # docs/decisions/020-app-delivery-model.md.
 
 replicaCount: 1
-
 image:
   repository: registry.registry.svc.cluster.local:5000/resume-site
-  tag: "latest"  # bumped by CI on each push to main
+  tag: "8eb8d6b6806a0b1f5b0ade4dde81eb3b8ca3bdd8" # bumped by CI on each push to main
   pullPolicy: IfNotPresent
-
 service:
   type: ClusterIP
   port: 8000
-
 ingress:
   enabled: true
   className: nginx
@@ -22,7 +19,6 @@ ingress:
   host: resume.bearflinn.com
   tls:
     enabled: false
-
 resources:
   limits:
     cpu: 500m
@@ -30,11 +26,10 @@ resources:
   requests:
     cpu: 250m
     memory: 256Mi
-
 # SQLite Configuration (embedded database with persistent volume)
 sqlite:
   databasePath: /app/db/resume.db
   persistence:
     enabled: true
     size: 1Gi
-    storageClass: iscsi-zfs  # explicit; iscsi-zfs is the cluster default but we pin it
+    storageClass: iscsi-zfs # explicit; iscsi-zfs is the cluster default but we pin it
