@@ -7,7 +7,7 @@
 replicaCount: 1
 image:
   repository: registry.registry.svc.cluster.local:5000/resume-site
-  tag: "c7593c5165b107fde6512ff540ec8c2c9484cb19" # bumped by CI on each push to main
+  tag: "8eb8d6b6806a0b1f5b0ade4dde81eb3b8ca3bdd8" # bumped by CI on each push to main
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
